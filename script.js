@@ -1,6 +1,4 @@
-// ВАЖНО: ЗАМЕНИТЕ АДРЕС В КАВЫЧКАХ НИЖЕ НА АДРЕС, КОТОРЫЙ ВЫДАСТ ХОСТИНГ (например: 'wss://my-chat.onrender.com')
-// Обязательно используйте wss:// (это защищенное соединение)
-const socket = new WebSocket('wss://ВАШ-САЙТ.onrender.com'); 
+const socket = new WebSocket('wss://messenger-gzheba.onrender.com');
 
 const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
@@ -75,7 +73,7 @@ const sortedDecryptKeys = Object.keys(decryptionMap).sort((a, b) => b.length - a
 
 const availableReactions = [
     '❤️', '👍🏻', '😁', '💯', '👌🏻', '🔥', '👏🏻',
-    '😢', '🤔', '🤣', '🤝', '😐', '😨', '🥰', '😘',
+    '😢', '🤔', '🤣', '🤝', '👋🏻', '😐', '😨', '🥰', '😘',
     '🤬', '😭', '👎', '🤯', '😱', '🤮',
     '💩', '🏆', '🥱', '🙏🏻', '😴', '🖕🏻', '👀',
     '😎', '😈'
