@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мессенджер</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="messages">
+        </div>
+        <div id="input-area">
+            <div id="reply-preview" class="reply-preview">
+                <div class="reply-header">
+                    <span class="reply-author">Ответ пользователю</span>
+                    <button class="cancel-reply-btn" title="Отменить ответ">&times;</button>
+                </div>
+                <div class="reply-content">
+                    <div class="reply-text"></div>
+                    <div class="reply-image-indicator" style="display: none;">📷 Изображение</div>
+                </div>
+            </div>
+            
+            <div id="image-preview-container" style="display: none;">
+                <div class="image-preview-wrapper">
+                    <img id="image-preview" src="" alt="Image Preview">
+                </div>
+                <button id="cancel-preview-btn">&times;</button>
+            </div>
+            <div id="input-row">
+                <input type="text" id="message-input" placeholder="Сообщение...">
+                <button id="send-button"><i class="fa-regular fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="image-modal" class="modal">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modal-image" alt="Zoomed Image">
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
