@@ -1,12 +1,10 @@
 const WebSocket = require('ws');
 
-// ИЗМЕНЕНИЕ: Используем порт от хостинга или 8080 для локального теста
 const PORT = process.env.PORT || 8080;
 const wss = new WebSocket.Server({ port: PORT });
 
 const clients = new Set();
 const messageHistory = [];
-
 const messageReactions = new Map();
 
 function broadcast(message, sender) {
@@ -19,7 +17,6 @@ function broadcast(message, sender) {
 
 function handleReaction(data, sender) {
     const { messageId, emoji, userId, oldEmoji } = data;
-    
     
     if (!messageReactions.has(messageId)) {
         messageReactions.set(messageId, new Map());
@@ -95,6 +92,12 @@ function getReactionStats() {
 wss.on('connection', (ws) => {
     console.log('Новый пользователь подключился!');
     clients.add(ws);
+    
+    ws.isAlive = true;
+    
+    ws.on('pong', () => {
+        ws.isAlive = true;
+    });
 
     const stats = getReactionStats();
     ws.send(JSON.stringify({ type: 'stats', ...stats }));
@@ -116,14 +119,25 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         console.log('Пользователь отключился.');
         clients.delete(ws);
-        
-        const stats = getReactionStats();
     });
     
     ws.on('error', (error) => {
         console.error('Произошла ошибка:', error);
     });
 });
+
+const heartbeat = setInterval(() => {
+    wss.clients.forEach(ws => {
+        if (ws.isAlive === false) {
+            console.log('Удаление неактивного клиента');
+            clients.delete(ws);
+            return ws.terminate();
+        }
+        
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, 30000);
 
 setInterval(() => {
     if (clients.size > 0) {
@@ -132,4 +146,9 @@ setInterval(() => {
     }
 }, 30000);
 
-console.log(`Сервер чата запущен на порту ${PORT}...`);
+wss.on('close', () => {
+    clearInterval(heartbeat);
+});
+
+console.log(`🚀 Сервер чата запущен на порту ${PORT}...`);
+console.log(`📡 WebSocket эндпоинт: ws://localhost:${PORT}`);
