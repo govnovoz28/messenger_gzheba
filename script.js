@@ -113,7 +113,7 @@ function cancelReply() {
 cancelReplyBtn.addEventListener('click', cancelReply);
 
 function closeAllPopups() {
-    document.querySelectorAll('.emoji-picker, .hide-spoiler-btn, .reply-btn').forEach(el => el.remove());
+    document.querySelectorAll('.emoji-picker, .context-menu').forEach(el => el.remove());
 }
 
 let emojiPickerTimeout;
@@ -144,7 +144,6 @@ function showEmojiPicker(event, messageWrapper) {
         const expandButton = document.createElement('button');
         expandButton.className = 'expand-button';
         expandButton.innerHTML = '&#9660;';
-        expandButton.title = 'Показать все эмодзи';
 
         expandButton.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -169,7 +168,7 @@ function showEmojiPicker(event, messageWrapper) {
 
             picker.replaceWith(expandedPicker);
             parseEmojis(expandedPicker);
-            checkAndCreateButtons(messageWrapper, expandedPicker);
+            createContextMenu(messageWrapper, expandedPicker);
         });
 
         fragment.appendChild(expandButton);
@@ -179,12 +178,14 @@ function showEmojiPicker(event, messageWrapper) {
         parseEmojis(picker);
 
         picker.style.left = `${event.pageX}px`;
-        picker.style.top = `${event.pageY}px`;
+        const pickerHeight = picker.offsetHeight;
+        const replyBtnOffset = 22; 
+        picker.style.top = `${event.pageY - pickerHeight - replyBtnOffset}px`;
 
-        checkAndCreateButtons(messageWrapper, picker);
+        createContextMenu(messageWrapper, picker);
 
         const closeHandler = (e) => {
-            if (!picker.contains(e.target) && !e.target.closest('.hide-spoiler-btn, .reply-btn')) {
+            if (!picker.contains(e.target) && !e.target.closest('.context-menu')) {
                 closeAllPopups();
                 document.removeEventListener('click', closeHandler);
             }
@@ -194,62 +195,51 @@ function showEmojiPicker(event, messageWrapper) {
     }, 10);
 }
 
+function createContextMenu(messageWrapper, picker) {
+    document.querySelector('.context-menu')?.remove();
 
-function checkAndCreateButtons(messageWrapper, picker) {
-    createReplyButton(messageWrapper, picker);
-
-    const img = messageWrapper.querySelector('img[data-is-spoiler="true"]');
-    if (img && !img.classList.contains('spoiler')) {
-        createSpoilerButton(messageWrapper, picker);
-    }
-}
-
-function createReplyButton(messageWrapper, picker) {
-    document.querySelector('.reply-btn')?.remove();
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
 
     const replyBtn = document.createElement('button');
-    replyBtn.className = 'reply-btn';
+    replyBtn.className = 'context-btn';
     replyBtn.innerHTML = '<i class="fa-solid fa-reply"></i> Ответить';
-    document.body.appendChild(replyBtn);
-
-    const pickerRect = picker.getBoundingClientRect();
-    replyBtn.style.position = 'absolute';
-    replyBtn.style.top = `${window.scrollY + pickerRect.bottom + 4}px`;
-    replyBtn.style.left = `${window.scrollX + pickerRect.left + pickerRect.width / 2}px`;
-
     replyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         handleReply(messageWrapper);
         closeAllPopups();
     });
-}
+    menu.appendChild(replyBtn);
 
-function createSpoilerButton(messageWrapper, picker) {
-    const img = messageWrapper.querySelector('img[data-is-spoiler="true"]');
-    document.querySelector('.hide-spoiler-btn')?.remove();
-
-    const hideButton = document.createElement('button');
-    hideButton.className = 'hide-spoiler-btn';
-    hideButton.textContent = 'Спрятать под спойлер';
-    document.body.appendChild(hideButton);
-
-    const pickerRect = picker.getBoundingClientRect();
-    const replyBtn = document.querySelector('.reply-btn');
-    let topOffset = pickerRect.bottom + 4;
-
-    if (replyBtn) {
-        topOffset = replyBtn.getBoundingClientRect().bottom + 4;
-    }
-
-    hideButton.style.position = 'absolute';
-    hideButton.style.top = `${window.scrollY + topOffset}px`;
-    hideButton.style.left = `${window.scrollX + pickerRect.left + pickerRect.width / 2}px`;
-
-    hideButton.addEventListener('click', (e) => {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'context-btn';
+    copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Копировать';
+    copyBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        img.classList.add('spoiler');
+        await handleCopy(messageWrapper, copyBtn);
         closeAllPopups();
     });
+    menu.appendChild(copyBtn);
+
+    const img = messageWrapper.querySelector('img[data-is-spoiler="true"]');
+    if (img && !img.classList.contains('spoiler')) {
+        const spoilerBtn = document.createElement('button');
+        spoilerBtn.className = 'context-btn';
+        spoilerBtn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> Спрятать';
+        spoilerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            img.classList.add('spoiler');
+            closeAllPopups();
+        });
+        menu.appendChild(spoilerBtn);
+    }
+
+    document.body.appendChild(menu);
+
+    const pickerRect = picker.getBoundingClientRect();
+    menu.style.position = 'absolute';
+    menu.style.top = `${window.scrollY + pickerRect.bottom + 4}px`;
+    menu.style.left = `${window.scrollX + pickerRect.left + pickerRect.width / 2}px`;
 }
 
 function updateReactionsDisplay(messageWrapper, messageId) {
@@ -468,7 +458,11 @@ function displayMessage(data, type) {
     let messageElement;
     if (data.type === 'image') {
         messageElement = document.createElement('div');
-        messageElement.classList.add('message', 'message-image');
+        messageElement.classList.add('message', 'message-image', type);
+        
+        const imageWrapper = document.createElement('div');
+        imageWrapper.className = 'image-wrapper';
+
         const img = document.createElement('img');
         img.src = data.content;
         img.style.cursor = 'pointer';
@@ -477,7 +471,24 @@ function displayMessage(data, type) {
             img.classList.add('spoiler');
             img.dataset.isSpoiler = 'true';
         }
-        messageElement.appendChild(img);
+        
+        imageWrapper.appendChild(img);
+        messageElement.appendChild(imageWrapper);
+
+        if (data.text) {
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('message-caption');
+            textDiv.textContent = data.text;
+            
+            parseEmojis(textDiv);
+            
+            if (type === 'friend-message' && isEncryptedMessage(data.text)) {
+                 const translateBtn = createTranslateButton(textDiv, data.text);
+                 textDiv.appendChild(translateBtn);
+            }
+            
+            messageElement.appendChild(textDiv);
+        }
     } else if (data.type === 'text' || data.type === 'info') {
         messageElement = document.createElement('div');
         messageElement.classList.add('message', type);
@@ -500,14 +511,59 @@ function handleReply(messageWrapper) {
     const messageElement = messageWrapper.querySelector('.message');
     const isImage = messageElement.classList.contains('message-image');
     
+    let replyContent = 'Изображение';
+    if (isImage) {
+        const caption = messageElement.querySelector('.message-caption');
+        if (caption) {
+            replyContent = caption.textContent;
+        }
+    } else {
+        replyContent = messageElement.textContent.trim();
+    }
+    
     const messageData = {
         messageId: messageWrapper.dataset.messageId,
         clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'other-user',
-        type: isImage ? 'image' : 'text',
-        content: isImage ? 'Изображение' : messageElement.textContent.trim()
+        type: isImage && replyContent === 'Изображение' ? 'image' : 'text',
+        content: replyContent
     };
-    
+
     setReplyTo(messageData);
+}
+
+async function handleCopy(messageWrapper, copyBtn) {
+    const messageElement = messageWrapper.querySelector('.message');
+    const isImage = messageElement.classList.contains('message-image');
+    
+    try {
+        if (isImage) {
+            const img = messageElement.querySelector('img');
+            const response = await fetch(img.src);
+            const blob = await response.blob();
+            await navigator.clipboard.write([
+                new ClipboardItem({ [blob.type]: blob })
+            ]);
+            showCopyFeedback(copyBtn, 'Скопировано');
+        } else {
+            const text = messageElement.textContent.trim();
+            await navigator.clipboard.writeText(text);
+            showCopyFeedback(copyBtn, 'Скопировано');
+        }
+    } catch (err) {
+        console.error('Ошибка копирования:', err);
+        showCopyFeedback(copyBtn, 'Ошибка');
+    }
+}
+
+function showCopyFeedback(button, message) {
+    const originalHTML = button.innerHTML;
+    button.innerHTML = `<i class="fa-solid fa-check"></i> ${message}`;
+    button.style.pointerEvents = 'none';
+    
+    setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.style.pointerEvents = 'auto';
+    }, 1500);
 }
 
 messagesContainer.addEventListener('contextmenu', (event) => {
@@ -585,16 +641,18 @@ function sendMessage() {
         replyTo: replyToMessage || null
     };
 
+    const messageText = messageInput.value.trim();
+
     if (stagedImage) {
         messageData = {
             ...messageData,
             type: 'image',
             content: stagedImage,
+            text: messageText,
             isSpoiler: isStagedImageSpoiler
         };
         cancelImagePreview();
     } else {
-        const messageText = messageInput.value.trim();
         if (messageText === '' && !replyToMessage) return;
         messageData = {
             ...messageData,
@@ -794,6 +852,11 @@ function focusMessageInput() {
 
 
 document.addEventListener('click', (event) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+        return;
+    }
+
     const interactiveSelectors = [
         'button',
         'a',
@@ -802,7 +865,8 @@ document.addEventListener('click', (event) => {
         '.modal',
         'img',
         '.reactions-container',
-        '#preview-context-menu'
+        '#preview-context-menu',
+        '.context-menu'
     ];
 
     const isInteractive = interactiveSelectors.some(selector => event.target.closest(selector));
