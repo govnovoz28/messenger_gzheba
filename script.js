@@ -4,8 +4,6 @@ const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
 const previewContainer = document.getElementById('image-preview-container');
-const previewImage = document.getElementById('image-preview');
-const cancelPreviewBtn = document.getElementById('cancel-preview-btn');
 
 const replyPreview = document.getElementById('reply-preview');
 const cancelReplyBtn = replyPreview.querySelector('.cancel-reply-btn');
@@ -18,16 +16,25 @@ const modalImg = document.getElementById('modal-image');
 const closeModalBtn = document.querySelector('.modal-close');
 const modalLoader = document.getElementById('modal-loader');
 
+const modalPrevBtn = document.createElement('button');
+modalPrevBtn.className = 'modal-nav modal-prev';
+modalPrevBtn.innerHTML = '&#10094;';
+modal.appendChild(modalPrevBtn);
+
+const modalNextBtn = document.createElement('button');
+modalNextBtn.className = 'modal-nav modal-next';
+modalNextBtn.innerHTML = '&#10095;';
+modal.appendChild(modalNextBtn);
+
 const clientId = 'user-' + Date.now() + Math.random();
 
-let stagedImage = null;
-let isStagedImageSpoiler = false;
+let stagedFiles = []; 
 let messageCounter = 0;
-
 let replyToMessage = null;
+let currentGalleryImages = [];
+let currentGalleryIndex = 0;
 
 const localReactions = new Map();
-
 const emojiCache = new Map();
 const encryptionCache = new Map();
 const decryptionCache = new Map();
@@ -69,7 +76,6 @@ const decryptionMap = Object.entries(encryptionMap).reduce((acc, [key, value]) =
     return acc;
 }, {});
 const sortedDecryptKeys = Object.keys(decryptionMap).sort((a, b) => b.length - a.length);
-
 
 const availableReactions = [
     '❤️', '👍🏻', '😁', '💯', '👌🏻', '🔥', '👏🏻',
@@ -403,7 +409,6 @@ function decryptMessage(encryptedText) {
     return result;
 }
 
-
 function createTranslateButton(messageElement, originalText) {
     const translateBtn = document.createElement('button');
     translateBtn.textContent = 'перевести';
@@ -456,34 +461,53 @@ function displayMessage(data, type) {
     }
 
     let messageElement;
+    let images = [];
     if (data.type === 'image') {
+        if (data.images && Array.isArray(data.images)) {
+            images = data.images;
+        } else if (data.content && data.content.startsWith('data:image')) {
+             images = [{ content: data.content, isSpoiler: data.isSpoiler }];
+        }
+    }
+
+    if (images.length > 0) {
         messageElement = document.createElement('div');
         messageElement.classList.add('message', 'message-image', type);
         
-        const imageWrapper = document.createElement('div');
-        imageWrapper.className = 'image-wrapper';
+        const grid = document.createElement('div');
+        grid.className = 'image-grid';
+        grid.dataset.count = images.length > 9 ? 9 : images.length; 
 
-        const img = document.createElement('img');
-        img.src = data.content;
-        img.style.cursor = 'pointer';
-        img.loading = 'lazy';
-        if (data.isSpoiler) {
-            img.classList.add('spoiler');
-            img.dataset.isSpoiler = 'true';
-        }
+        images.forEach(imgData => {
+            const imageWrapper = document.createElement('div');
+            imageWrapper.className = 'image-wrapper';
+
+            const img = document.createElement('img');
+            img.src = imgData.content;
+            img.style.cursor = 'pointer';
+            img.loading = 'lazy';
+            if (imgData.isSpoiler) {
+                img.classList.add('spoiler');
+                img.dataset.isSpoiler = 'true';
+            }
+            
+            imageWrapper.appendChild(img);
+            grid.appendChild(imageWrapper);
+        });
+
+        messageElement.appendChild(grid);
+
+        const textContent = data.text || (data.type === 'image' && !data.images ? data.text : null); 
         
-        imageWrapper.appendChild(img);
-        messageElement.appendChild(imageWrapper);
-
-        if (data.text) {
+        if (textContent) {
             const textDiv = document.createElement('div');
             textDiv.classList.add('message-caption');
-            textDiv.textContent = data.text;
+            textDiv.textContent = textContent;
             
             parseEmojis(textDiv);
             
-            if (type === 'friend-message' && isEncryptedMessage(data.text)) {
-                 const translateBtn = createTranslateButton(textDiv, data.text);
+            if (type === 'friend-message' && isEncryptedMessage(textContent)) {
+                 const translateBtn = createTranslateButton(textDiv, textContent);
                  textDiv.appendChild(translateBtn);
             }
             
@@ -586,8 +610,8 @@ function toggleSendButton() {
     clearTimeout(toggleTimeout);
     toggleTimeout = setTimeout(() => {
         const hasText = messageInput.value.trim() !== '';
-        const hasImage = stagedImage !== null;
-        sendButton.style.display = (hasText || hasImage) ? 'flex' : 'none';
+        const hasImages = stagedFiles.length > 0;
+        sendButton.style.display = (hasText || hasImages) ? 'flex' : 'none';
     }, 50);
 }
 
@@ -614,23 +638,133 @@ socket.onerror = (error) => {
     console.error('Ошибка WebSocket:', error);
 };
 
-function showImagePreview(imageBase64) {
-    stagedImage = imageBase64;
-    previewImage.src = imageBase64;
-    previewContainer.style.display = 'flex';
-    isStagedImageSpoiler = false;
-    previewImage.classList.remove('spoiler');
+function addImageToStage(imageBase64) {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    stagedFiles.push({
+        id: id,
+        content: imageBase64,
+        isSpoiler: false
+    });
+    renderPreview();
     toggleSendButton();
 }
 
-function cancelImagePreview() {
-    stagedImage = null;
-    isStagedImageSpoiler = false;
-    previewContainer.style.display = 'none';
-    previewImage.classList.remove('spoiler');
-    messageInput.value = '';
+function renderPreview() {
+    previewContainer.innerHTML = '';
+    
+    if (stagedFiles.length === 0) {
+        previewContainer.style.display = 'none';
+        return;
+    }
+    
+    previewContainer.style.display = 'flex';
+
+    stagedFiles.forEach((file, index) => {
+        const item = document.createElement('div');
+        item.className = 'preview-item';
+        item.draggable = true;
+        if (file.isSpoiler) item.classList.add('is-spoiler');
+        item.dataset.index = index;
+
+        const img = document.createElement('img');
+        img.src = file.content;
+        if (file.isSpoiler) img.classList.add('spoiler-preview');
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-preview-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Удалить';
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            stagedFiles.splice(index, 1);
+            renderPreview();
+            toggleSendButton();
+            if(stagedFiles.length === 0) focusMessageInput();
+        });
+
+        const spoilerIndicator = document.createElement('div');
+        spoilerIndicator.className = 'spoiler-indicator';
+        spoilerIndicator.textContent = 'SPOILER';
+
+        item.appendChild(img);
+        item.appendChild(removeBtn);
+        item.appendChild(spoilerIndicator);
+
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragend', handleDragEnd);
+        item.addEventListener('contextmenu', (e) => handlePreviewContextMenu(e, index));
+
+        previewContainer.appendChild(item);
+    });
+}
+
+function handlePreviewContextMenu(e, index) {
+    e.preventDefault();
+    document.getElementById('preview-context-menu')?.remove();
+
+    const menu = document.createElement('div');
+    menu.id = 'preview-context-menu';
+
+    const file = stagedFiles[index];
+    const hideButton = document.createElement('button');
+    hideButton.textContent = file.isSpoiler ? 'Показать' : 'Спрятать под спойлер';
+    hideButton.addEventListener('click', () => {
+        file.isSpoiler = !file.isSpoiler;
+        renderPreview();
+        menu.remove();
+    });
+
+    menu.appendChild(hideButton);
+    document.body.appendChild(menu);
+
+    menu.style.top = `${e.clientY}px`;
+    menu.style.left = `${e.clientX}px`;
+
+    const closeHandler = () => {
+        menu.remove();
+        document.removeEventListener('click', closeHandler);
+    };
+    requestAnimationFrame(() => document.addEventListener('click', closeHandler));
+}
+
+let dragStartIndex;
+
+function handleDragStart(e) {
+    dragStartIndex = +this.dataset.index;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    const dragEndIndex = +this.dataset.index;
+    swapItems(dragStartIndex, dragEndIndex);
+    this.classList.remove('dragging');
+}
+
+function handleDragEnd() {
+    this.classList.remove('dragging');
+    renderPreview();
+}
+
+function swapItems(fromIndex, toIndex) {
+    const itemToMove = stagedFiles[fromIndex];
+    stagedFiles.splice(fromIndex, 1);
+    stagedFiles.splice(toIndex, 0, itemToMove);
+    renderPreview();
+}
+
+function clearStagedFiles() {
+    stagedFiles = [];
+    renderPreview();
     toggleSendButton();
-    focusMessageInput();
 }
 
 function sendMessage() {
@@ -643,15 +777,14 @@ function sendMessage() {
 
     const messageText = messageInput.value.trim();
 
-    if (stagedImage) {
+    if (stagedFiles.length > 0) {
         messageData = {
             ...messageData,
             type: 'image',
-            content: stagedImage,
-            text: messageText,
-            isSpoiler: isStagedImageSpoiler
+            images: stagedFiles.map(f => ({ content: f.content, isSpoiler: f.isSpoiler })),
+            text: messageText
         };
-        cancelImagePreview();
+        clearStagedFiles();
     } else {
         if (messageText === '' && !replyToMessage) return;
         messageData = {
@@ -659,8 +792,8 @@ function sendMessage() {
             type: 'text',
             content: messageText || '(пустое сообщение)'
         };
-        messageInput.value = '';
     }
+    messageInput.value = '';
     
     socket.send(JSON.stringify(messageData));
     displayMessage(messageData, 'my-message');
@@ -680,7 +813,7 @@ messageInput.addEventListener('input', toggleSendButton);
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
-        if (document.activeElement === messageInput || stagedImage || replyToMessage) {
+        if (document.activeElement === messageInput || stagedFiles.length > 0 || replyToMessage) {
             event.preventDefault();
             sendMessage();
         }
@@ -690,59 +823,42 @@ document.addEventListener('keydown', (event) => {
         } else if (replyToMessage) {
             cancelReply();
         }
-    }
-});
-
-messageInput.addEventListener('paste', (event) => {
-    const item = Array.from(event.clipboardData.items).find(i => i.type.startsWith('image/'));
-    if (item) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => showImagePreview(e.target.result);
-            reader.readAsDataURL(file);
+    } else if (modal.style.display === 'flex') {
+        if (event.key === 'ArrowRight') {
+            showNextImage();
+        } else if (event.key === 'ArrowLeft') {
+            showPrevImage();
         }
     }
 });
 
-cancelPreviewBtn.addEventListener('click', cancelImagePreview);
-
-previewContainer.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    document.getElementById('preview-context-menu')?.remove();
-
-    const menu = document.createElement('div');
-    menu.id = 'preview-context-menu';
-
-    const hideButton = document.createElement('button');
-    hideButton.textContent = isStagedImageSpoiler ? 'Показать' : 'Спрятать под спойлер';
-    hideButton.addEventListener('click', () => {
-        isStagedImageSpoiler = !isStagedImageSpoiler;
-        previewImage.classList.toggle('spoiler', isStagedImageSpoiler);
-        menu.remove();
+messageInput.addEventListener('paste', (event) => {
+    const items = Array.from(event.clipboardData.items);
+    
+    items.forEach(item => {
+        if (item.type.startsWith('image/')) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => addImageToStage(e.target.result);
+                reader.readAsDataURL(file);
+            }
+        }
     });
-
-    menu.appendChild(hideButton);
-    document.body.appendChild(menu);
-
-    menu.style.top = `${e.clientY}px`;
-    menu.style.left = `${e.clientX}px`;
-
-    const closeHandler = () => {
-        menu.remove();
-        document.removeEventListener('click', closeHandler);
-    };
-    requestAnimationFrame(() => document.addEventListener('click', closeHandler));
 });
-
 
 let currentScale = 1;
 let isDragging = false;
 let startPos = { x: 0, y: 0 };
 let translatePos = { x: 0, y: 0 };
 
-function openModal(imageSrc) {
+function openModal(imagesArray, startIndex = 0) {
+    currentGalleryImages = imagesArray;
+    currentGalleryIndex = startIndex;
+    
+    updateModalButtons();
+    
     modal.style.display = 'flex';
     if (modalLoader) modalLoader.style.display = 'block';
     modalImg.style.opacity = '0';
@@ -754,16 +870,55 @@ function openModal(imageSrc) {
     document.body.classList.add('modal-open');
     resetImageTransform();
 
-    const preloader = new Image();
+    updateModalImage();
+}
+
+function updateModalImage() {
+    modalImg.style.opacity = '0';
+    resetImageTransform();
     
+    const imageSrc = currentGalleryImages[currentGalleryIndex];
+    
+    const preloader = new Image();
     preloader.onload = () => {
         modalImg.src = imageSrc;
         if (modalLoader) modalLoader.style.display = 'none';
         modalImg.style.opacity = '1';
     };
-    
     preloader.src = imageSrc;
 }
+
+function updateModalButtons() {
+    if (currentGalleryImages.length > 1) {
+        modalPrevBtn.style.display = 'flex';
+        modalNextBtn.style.display = 'flex';
+    } else {
+        modalPrevBtn.style.display = 'none';
+        modalNextBtn.style.display = 'none';
+    }
+}
+
+function showNextImage() {
+    if (currentGalleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex + 1) % currentGalleryImages.length;
+    updateModalImage();
+}
+
+function showPrevImage() {
+    if (currentGalleryImages.length <= 1) return;
+    currentGalleryIndex = (currentGalleryIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+    updateModalImage();
+}
+
+modalNextBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showNextImage();
+});
+
+modalPrevBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showPrevImage();
+});
 
 function closeModal() {
     modal.classList.remove('modal-visible');
@@ -780,13 +935,32 @@ function closeModal() {
 }
 
 function updateImageTransform() {
-    modalImg.style.transform = `scale(${currentScale}) translate(${translatePos.x}px, ${translatePos.y}px)`;
+    modalImg.style.transform = `translate(${translatePos.x}px, ${translatePos.y}px) scale(${currentScale})`;
 }
 
 function resetImageTransform() {
     currentScale = 1;
     translatePos = { x: 0, y: 0 };
     updateImageTransform();
+}
+
+function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+}
+
+function getDragLimits() {
+    if (currentScale <= 1) return { x: 0, y: 0 };
+    
+    const imageWidth = modalImg.offsetWidth * currentScale;
+    const imageHeight = modalImg.offsetHeight * currentScale;
+    
+    const limitX = (imageWidth - window.innerWidth) / 2;
+    const limitY = (imageHeight - window.innerHeight) / 2;
+    
+    return {
+        x: Math.max(0, limitX),
+        y: Math.max(0, limitY)
+    };
 }
 
 messagesContainer.addEventListener('click', function(event) {
@@ -796,7 +970,14 @@ messagesContainer.addEventListener('click', function(event) {
         if (img.classList.contains('spoiler')) {
             img.classList.remove('spoiler');
         } else {
-            openModal(img.src);
+            const grid = img.closest('.image-grid');
+            if (grid) {
+                const images = Array.from(grid.querySelectorAll('img')).map(i => i.src);
+                const idx = images.indexOf(img.src);
+                openModal(images, idx !== -1 ? idx : 0);
+            } else {
+                openModal([img.src], 0);
+            }
         }
     }
 });
@@ -807,21 +988,26 @@ modalImg.addEventListener('dblclick', resetImageTransform);
 
 modal.addEventListener('wheel', (event) => {
     event.preventDefault();
-    const zoomFactor = 0.1;
-    const rect = modalImg.getBoundingClientRect();
-    const offsetX = (event.clientX - rect.left) / currentScale;
-    const offsetY = (event.clientY - rect.top) / currentScale;
+    const zoomFactor = 0.15;
+    const oldScale = currentScale;
     
-    const scale = currentScale;
-    currentScale = event.deltaY < 0 ? Math.min(scale + zoomFactor, 5) : Math.max(scale - zoomFactor, 0.5);
-
-    translatePos.x += (offsetX * (scale - currentScale));
-    translatePos.y += (offsetY * (scale - currentScale));
-
-    updateImageTransform();
+    if (event.deltaY < 0) {
+        currentScale = Math.min(currentScale + zoomFactor, 5);
+    } else {
+        currentScale = Math.max(currentScale - zoomFactor, 1);
+    }
+    
+    if (oldScale !== currentScale) {
+        const limits = getDragLimits();
+        translatePos.x = clamp(translatePos.x, -limits.x, limits.x);
+        translatePos.y = clamp(translatePos.y, -limits.y, limits.y);
+        updateImageTransform();
+    }
 });
 
 modalImg.addEventListener('mousedown', (event) => {
+    if (currentScale <= 1) return;
+
     event.preventDefault();
     isDragging = true;
     startPos = {
@@ -833,8 +1019,20 @@ modalImg.addEventListener('mousedown', (event) => {
 
 document.addEventListener('mousemove', (event) => {
     if (isDragging) {
-        translatePos.x = event.clientX - startPos.x;
-        translatePos.y = event.clientY - startPos.y;
+        if (currentScale <= 1) {
+            isDragging = false;
+            modalImg.style.cursor = 'grab';
+            return;
+        }
+
+        const rawX = event.clientX - startPos.x;
+        const rawY = event.clientY - startPos.y;
+        
+        const limits = getDragLimits();
+        
+        translatePos.x = clamp(rawX, -limits.x, limits.x);
+        translatePos.y = clamp(rawY, -limits.y, limits.y);
+        
         updateImageTransform();
     }
 });
@@ -849,7 +1047,6 @@ function focusMessageInput() {
         messageInput.focus();
     });
 }
-
 
 document.addEventListener('click', (event) => {
     const selection = window.getSelection();
@@ -866,7 +1063,8 @@ document.addEventListener('click', (event) => {
         'img',
         '.reactions-container',
         '#preview-context-menu',
-        '.context-menu'
+        '.context-menu',
+        '.modal-nav'
     ];
 
     const isInteractive = interactiveSelectors.some(selector => event.target.closest(selector));
