@@ -58,53 +58,74 @@ body.modal-open {
 }
 
 .message-image {
-    padding: 5px;
-    background-color: transparent !important;
-    border-radius: 6px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0px 0px 8px 8px;
+    line-height: normal;
     overflow: hidden;
+    gap: 0px;
+}
+
+.image-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0px;
     line-height: 0;
+    width: 100%;
 }
 
 .message-image img {
     max-width: 400px;
-    max-height: 300px;
-    width: auto;
+    max-height: 300px;    
+    width: 100%; 
     height: auto;
     display: block;
     cursor: pointer;
-    transition: opacity 0.2s ease, filter 0.3s ease-in-out;
-    object-fit: contain;
+    transition: opacity 0.2s ease, filter 0.3s ease-in-out, transform 0.3s ease-in-out;
+    object-fit: cover;
 }
 
 .message-image img:hover {
-    opacity: 0.8;
+    opacity: 1.0;
 }
 
 .message-image img.spoiler {
     filter: blur(15px);
+    transform: scale(1.1);
 }
 
 .message-image img.spoiler:hover {
     filter: blur(10px);
     opacity: 1.0;
+    transform: scale(1.1);
+}
+
+.message-caption {
+    margin-top: 0;
+    padding: 8px 12px; 
+    font-size: 15px;
+    line-height: 1.4;
+    word-break: break-word;
+    color: inherit;
 }
 
 .my-message {
-    background-color: #0084ff;
+    background-color: #5a5a5a;
     color: white;
-    border-bottom-right-radius: 3px;
+    border-radius: 8px 8px 0 8px; 
 }
 
 .friend-message {
     background-color: #4f4f4f;
     color: #f1f1f1;
-    border-bottom-left-radius: 3px;
+    border-radius: 8px 8px 8px 0; 
 }
 
 .translate-btn {
     background: none;
     border: none;
-    color: #888;
+    color: rgba(255, 255, 255, 0.7);
     font-size: 12px;
     cursor: pointer;
     padding: 4px 0;
@@ -115,20 +136,20 @@ body.modal-open {
 }
 
 .translate-btn:hover {
-    color: #aaa;
+    color: #fff;
 }
 
 .translation {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: #bbb;
+    background-color: rgba(0, 0, 0, 0.2);
+    color: #eee;
     padding: 4px 12px;
     border-radius: 6px;
     margin: 5px 0 5px 0;
     font-size: 13px;
     font-style: italic;
-    max-width: 70%;
+    max-width: 90%;
     align-self: flex-start;
-    border-left: 3px solid #555;
+    border-left: 3px solid rgba(255, 255, 255, 0.3);
     position: relative;
 }
 
@@ -260,7 +281,6 @@ body.modal-open {
 
 .reaction:hover {
     background-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.05);
 }
 
 .reaction.my-reaction {
@@ -287,7 +307,7 @@ body.modal-open {
     vertical-align: middle;
 }
 
-.message img.emoji {
+.message img.emoji, .message-caption img.emoji {
     width: 20px;
     height: 20px;
     display: inline-block;
@@ -296,8 +316,8 @@ body.modal-open {
 }
 
 .emoji-picker img.emoji {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     display: inline-block;
     cursor: pointer;
     transition: transform 0.1s ease;
@@ -516,32 +536,34 @@ body.modal-open {
     background-color: #2b2b2b;
     border: 1px solid #444;
     border-radius: 8px;
-    padding: 6px;
+    padding: 4px;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     user-select: none;
-    width: 250px;
-    height: 25px;
+    width: 210px;
+    height: 28px;
+    overflow: visible;
+    transform-origin: center;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     transition: all 0.3s ease;
 }
 
 .emoji-picker.expanded {
-    width: 260px;
+    width: 210px;
     height: auto;
     display: grid;
     align-content: start;
-    grid-template-columns: repeat(7, 32px);
+    grid-template-columns: repeat(7, 26px);
     justify-content: center;
-    gap: 6px;
-    padding: 10px;
+    gap: 3px;
+    padding: 6px;
 }
 
 .emoji-picker .emoji {
     cursor: pointer;
-    font-size: 22px;
+    font-size: 18px;
     text-align: center;
     transition: transform 0.1s ease;
 }
@@ -567,39 +589,50 @@ body.modal-open {
     border-radius: 4px;
 }
 
-.reply-btn,
-.hide-spoiler-btn {
+.context-menu {
     position: absolute;
     background-color: #2b2b2b;
     border: 1px solid #444;
-    color: #f1f1f1;
     border-radius: 8px;
-    padding: 8px 12px;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    user-select: none;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s ease;
     display: flex;
-    align-items: left;
-    justify-content: flex-start;
-    padding-left: 20px;
-    gap: 6px;
+    flex-direction: column;
+    min-width: 180px;
     transform: translateX(-50%);
-    min-width: 210px;
-    max-width: 200px;
-    box-sizing: border-box;
-    white-space: nowrap;
+    overflow: hidden;
+    user-select: none;
 }
 
-.reply-btn:hover,
-.hide-spoiler-btn:hover {
+.context-btn {
+    background-color: transparent;
+    border: none;
+    color: #f1f1f1;
+    padding: 10px 16px;
+    text-align: left;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    outline: none;
+}
+
+.context-btn:hover {
     background-color: #3e3e3e;
 }
 
-.reply-btn i {
+.context-btn i {
+    width: 16px;
+    text-align: center;
     font-size: 12px;
+    color: #aaa;
+}
+
+.context-btn:hover i {
+    color: #fff;
 }
 
 #preview-context-menu {
