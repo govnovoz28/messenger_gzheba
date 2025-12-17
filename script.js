@@ -77,9 +77,11 @@ document.body.appendChild(deleteModal);
 let socket = null;
 let clientId = null;
 let clientAvatar = null;
+// ИСПРАВЛЕНИЕ 1: Добавляем переменную для хранения собственного числового ID
+let myId = null; 
+
 let isLoginMode = true;
 const onlineUsers = new Map(); 
-// Добавляем карту ID -> Имя для синхронизации
 const userNamesMap = new Map();
 
 const IMG_MAX_WIDTH = 1920;
@@ -108,11 +110,14 @@ const decryptionCache = new Map();
 const savedToken = localStorage.getItem('chat_token');
 const savedUsername = localStorage.getItem('chat_username');
 const savedAvatar = localStorage.getItem('chat_avatar');
+// ИСПРАВЛЕНИЕ 2: Загружаем ID из localStorage
+const savedId = localStorage.getItem('chat_id');
 
-if (savedToken && savedUsername) {
+if (savedToken && savedUsername && savedId) {
     authModal.style.display = 'none';
     mainWrapper.style.display = 'flex';
-    connectWebSocket(savedToken, savedUsername, savedAvatar);
+    // Передаем savedId в функцию подключения
+    connectWebSocket(savedToken, savedUsername, savedAvatar, savedId);
 } else {
     authModal.style.display = 'flex';
     mainWrapper.style.display = 'none';
@@ -189,6 +194,9 @@ saveProfileBtn.addEventListener('click', async () => {
         if (data.success) {
             clientId = data.username;
             clientAvatar = data.avatar;
+            // myId не меняется при обновлении профиля, но можно обновить localStorage на всякий случай
+            if (data.id) localStorage.setItem('chat_id', data.id);
+            
             localStorage.setItem('chat_token', data.token);
             localStorage.setItem('chat_username', data.username);
             if(data.avatar) localStorage.setItem('chat_avatar', data.avatar);
@@ -245,12 +253,16 @@ authForm.addEventListener('submit', async (e) => {
 
         localStorage.setItem('chat_token', data.token);
         localStorage.setItem('chat_username', data.username);
+        // ИСПРАВЛЕНИЕ 3: Сохраняем ID при логине
+        localStorage.setItem('chat_id', data.id);
+        
         if (data.avatar) localStorage.setItem('chat_avatar', data.avatar);
         else localStorage.removeItem('chat_avatar');
         
         authModal.style.display = 'none';
         mainWrapper.style.display = 'flex';
-        connectWebSocket(data.token, data.username, data.avatar);
+        
+        connectWebSocket(data.token, data.username, data.avatar, data.id);
         usernameInput.value = '';
         passwordInput.value = '';
 
@@ -262,8 +274,11 @@ authForm.addEventListener('submit', async (e) => {
 
 function updateHeaderUI() {
     let partner = null;
-    for (let [name, data] of onlineUsers) {
-        if (name !== clientId) {
+    
+    // ИСПРАВЛЕНИЕ 4: Ищем собеседника сравнивая ID, а не имена
+    for (let [id, data] of onlineUsers) {
+        // Превращаем оба ID в строки для надежного сравнения
+        if (String(id) !== String(myId)) {
             partner = data;
             break;
         }
@@ -317,9 +332,11 @@ async function handleFileSelect(e) {
     e.target.value = ''; 
 }
 
-function connectWebSocket(token, username, avatar) {
+function connectWebSocket(token, username, avatar, id) {
     clientId = username;
     clientAvatar = avatar || null;
+    myId = id; // Сохраняем свой ID
+    
     updateHeaderUI();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -336,13 +353,16 @@ function connectWebSocket(token, username, avatar) {
             
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
-                    onlineUsers.set(data.username, { username: data.username, avatar: data.avatar });
-                    // Сохраняем актуальное имя для ID
+                    // ИСПРАВЛЕНИЕ 5: Используем ID как ключ карты.
+                    // Теперь при смене имени запись просто обновится, а не создастся дубликат.
                     if (data.id) {
+                        onlineUsers.set(String(data.id), { username: data.username, avatar: data.avatar });
                         userNamesMap.set(String(data.id), data.username);
                     }
                 } else {
-                    onlineUsers.delete(data.username);
+                    if (data.id) {
+                        onlineUsers.delete(String(data.id));
+                    }
                 }
                 updateHeaderUI();
                 return;
@@ -360,7 +380,6 @@ function connectWebSocket(token, username, avatar) {
                 if (msgToRemove) msgToRemove.remove();
                 updateRepliesOnDelete(data.messageId);
             } else if (data.type === 'text' || data.type === 'image' || data.type === 'file' || data.type === 'info') {
-                // Если пришло сообщение, обновляем мапу
                 if (data.clientId && data.username) {
                     userNamesMap.set(String(data.clientId), data.username);
                 }
@@ -387,6 +406,8 @@ function connectWebSocket(token, username, avatar) {
         console.error(error);
     };
 }
+
+// ... (остальной код handleReaction, decryption, и т.д. без изменений до конца файла)
 
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
