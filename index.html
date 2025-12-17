@@ -9,40 +9,52 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-    <div id="chat-container">
-        <div id="chat-header">
-            <div class="header-avatar">
-                <i class="fa-solid fa-user"></i>
+    <div id="main-wrapper">
+        <div id="sidebar">
+            <button id="menu-btn"><i class="fa-solid fa-bars"></i></button>
+            <div id="side-menu">
+                <button id="open-profile-btn"><i class="fa-solid fa-user-pen"></i> Профиль</button>
             </div>
-            <div class="header-info">
-                <div id="header-username" class="header-title">Ожидание...</div>
-                <div id="header-status" class="header-status">не в сети</div>
+            <div id="my-mini-avatar" class="sidebar-avatar">
+                <i class="fa-solid fa-user"></i>
             </div>
         </div>
 
-        <div id="messages">
-        </div>
-        <div id="input-area">
-            <div id="reply-preview" class="reply-preview">
-                <div class="reply-header">
-                    <span class="reply-author">Ответ пользователю</span>
-                    <button class="cancel-reply-btn" title="Отменить ответ">&times;</button>
+        <div id="chat-container">
+            <div id="chat-header">
+                <div class="header-avatar" id="partner-avatar">
+                    <i class="fa-solid fa-user"></i>
                 </div>
-                <div class="reply-content">
-                    <div class="reply-text"></div>
-                    <div class="reply-image-indicator" style="display: none;">📷 Изображение</div>
+                <div class="header-info">
+                    <div id="header-username" class="header-title">Ожидание...</div>
+                    <div id="header-status" class="header-status">не в сети</div>
                 </div>
             </div>
-            
-            <div id="image-preview-container" style="display: none;">
-                <div class="image-preview-wrapper">
-                    <img id="image-preview" src="" alt="Image Preview">
-                </div>
-                <button id="cancel-preview-btn">&times;</button>
+
+            <div id="messages">
             </div>
-            <div id="input-row">
-                <input type="text" id="message-input" placeholder="Сообщение...">
-                <button id="send-button"><i class="fa-regular fa-paper-plane"></i></button>
+            <div id="input-area">
+                <div id="reply-preview" class="reply-preview">
+                    <div class="reply-header">
+                        <span class="reply-author">Ответ пользователю</span>
+                        <button class="cancel-reply-btn" title="Отменить ответ">&times;</button>
+                    </div>
+                    <div class="reply-content">
+                        <div class="reply-text"></div>
+                        <div class="reply-image-indicator" style="display: none;">📷 Изображение</div>
+                    </div>
+                </div>
+                
+                <div id="image-preview-container" style="display: none;">
+                    <div class="image-preview-wrapper">
+                        <img id="image-preview" src="" alt="Image Preview">
+                    </div>
+                    <button id="cancel-preview-btn">&times;</button>
+                </div>
+                <div id="input-row">
+                    <input type="text" id="message-input" placeholder="Сообщение...">
+                    <button id="send-button"><i class="fa-regular fa-paper-plane"></i></button>
+                </div>
             </div>
         </div>
     </div>
@@ -66,6 +78,21 @@
                 <span id="auth-toggle-text">Нет аккаунта?</span> 
                 <a href="#" id="auth-toggle-link">Зарегистрироваться</a>
             </p>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="modal">
+        <div class="profile-content">
+            <span class="profile-close">&times;</span>
+            <h2>Мой профиль</h2>
+            <div class="profile-avatar-wrapper">
+                <img id="profile-avatar-preview" src="" class="hidden">
+                <div id="profile-avatar-placeholder"><i class="fa-solid fa-user"></i></div>
+                <label for="profile-avatar-input" class="avatar-upload-btn"><i class="fa-solid fa-camera"></i></label>
+                <input type="file" id="profile-avatar-input" accept="image/*" style="display: none;">
+            </div>
+            <input type="text" id="profile-username-input" placeholder="Новое имя">
+            <button id="save-profile-btn">Сохранить</button>
         </div>
     </div>
 
