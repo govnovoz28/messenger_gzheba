@@ -13,7 +13,7 @@ body.modal-open {
 }
 
 #main-wrapper {
-    display: flex;
+    display: none;
     width: 1025px;
     height: 740px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
@@ -24,7 +24,7 @@ body.modal-open {
 }
 
 #sidebar {
-    width: 50px;
+    width: 70px;
     background-color: #222;
     border-right: 1px solid #444;
     display: flex;
