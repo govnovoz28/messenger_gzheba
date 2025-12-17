@@ -309,8 +309,7 @@ function connectWebSocket(token, username, avatar) {
     socket = new WebSocket(`${protocol}//${host}?token=${token}`);
 
     socket.onopen = () => {
-        authModal.style.display = 'none';
-        mainWrapper.style.display = 'flex';
+        // Мы НЕ показываем чат здесь, ждем первого сообщения
         authError.style.display = 'none';
     };
 
@@ -318,6 +317,12 @@ function connectWebSocket(token, username, avatar) {
         try {
             const data = JSON.parse(event.data);
             
+            // Если пришло любое сообщение от сервера, значит токен валиден и мы вошли
+            if (authModal.style.display !== 'none') {
+                authModal.style.display = 'none';
+                mainWrapper.style.display = 'flex';
+            }
+
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
                     onlineUsers.set(data.username, { username: data.username, avatar: data.avatar });
@@ -350,6 +355,7 @@ function connectWebSocket(token, username, avatar) {
     };
 
     socket.onclose = () => {
+        // При разрыве скрываем чат и показываем вход
         authModal.style.display = 'flex';
         mainWrapper.style.display = 'none';
         authError.textContent = "Соединение разорвано";
