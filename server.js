@@ -45,7 +45,7 @@ app.post('/api/register', (req, res) => {
             return res.status(400).json({ error: "Пользователь с таким именем уже существует" });
         }
         const token = jwt.sign({ id: this.lastID, username: username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешная регистрация", token, username, avatar: null });
+        res.json({ message: "Успешная регистрация", token, username, id: this.lastID, avatar: null });
     });
 });
 
@@ -61,7 +61,7 @@ app.post('/api/login', (req, res) => {
         if (!passwordIsValid) return res.status(401).json({ error: "Неверный пароль" });
 
         const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешный вход", token, username, avatar: user.avatar });
+        res.json({ message: "Успешный вход", token, username, id: user.id, avatar: user.avatar });
     });
 });
 
@@ -89,6 +89,7 @@ app.post('/api/update_profile', (req, res) => {
             res.json({ 
                 success: true, 
                 token: newToken, 
+                id: user.id,
                 username: updatedUsername,
                 avatar: newAvatar 
             });
@@ -113,7 +114,7 @@ function broadcast(data, senderWs) {
 function broadcastUserStatus(userData, status) {
     const data = { 
         type: 'partner_status', 
-        id: userData.id, // ДОБАВЛЕНО: передача ID
+        id: userData.id,
         username: userData.username, 
         avatar: userData.avatar,
         status: status 
@@ -162,7 +163,7 @@ wss.on('connection', (ws, req) => {
                 if (clientWs !== ws) {
                     ws.send(JSON.stringify({ 
                         type: 'partner_status', 
-                        id: uData.id, // ДОБАВЛЕНО: передача ID
+                        id: uData.id,
                         username: uData.username, 
                         avatar: uData.avatar,
                         status: 'online' 
