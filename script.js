@@ -347,6 +347,7 @@ function connectWebSocket(token, username, avatar) {
 
     socket.onclose = () => {
         authModal.style.display = 'flex';
+        mainWrapper.style.display = 'none';
         authError.textContent = "Соединение разорвано";
         authError.style.display = 'block';
         onlineUsers.clear();
