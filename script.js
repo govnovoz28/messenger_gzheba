@@ -2,8 +2,6 @@ const authModal = document.getElementById('auth-modal');
 const authForm = document.getElementById('auth-form');
 const authTitle = document.getElementById('auth-title');
 const authSubmit = document.getElementById('auth-submit');
-const authToggleLink = document.getElementById('auth-toggle-link');
-const authToggleText = document.getElementById('auth-toggle-text');
 const authError = document.getElementById('auth-error');
 const usernameInput = document.getElementById('auth-username');
 const passwordInput = document.getElementById('auth-password');
@@ -77,10 +75,8 @@ document.body.appendChild(deleteModal);
 let socket = null;
 let clientId = null;
 let clientAvatar = null;
-// ИСПРАВЛЕНИЕ 1: Добавляем переменную для хранения собственного числового ID
 let myId = null; 
 
-let isLoginMode = true;
 const onlineUsers = new Map(); 
 const userNamesMap = new Map();
 
@@ -110,13 +106,11 @@ const decryptionCache = new Map();
 const savedToken = localStorage.getItem('chat_token');
 const savedUsername = localStorage.getItem('chat_username');
 const savedAvatar = localStorage.getItem('chat_avatar');
-// ИСПРАВЛЕНИЕ 2: Загружаем ID из localStorage
 const savedId = localStorage.getItem('chat_id');
 
 if (savedToken && savedUsername && savedId) {
     authModal.style.display = 'none';
     mainWrapper.style.display = 'flex';
-    // Передаем savedId в функцию подключения
     connectWebSocket(savedToken, savedUsername, savedAvatar, savedId);
 } else {
     authModal.style.display = 'flex';
@@ -194,7 +188,6 @@ saveProfileBtn.addEventListener('click', async () => {
         if (data.success) {
             clientId = data.username;
             clientAvatar = data.avatar;
-            // myId не меняется при обновлении профиля, но можно обновить localStorage на всякий случай
             if (data.id) localStorage.setItem('chat_id', data.id);
             
             localStorage.setItem('chat_token', data.token);
@@ -222,21 +215,11 @@ saveProfileBtn.addEventListener('click', async () => {
     }
 });
 
-authToggleLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    isLoginMode = !isLoginMode;
-    authTitle.textContent = isLoginMode ? 'Вход' : 'Регистрация';
-    authSubmit.textContent = isLoginMode ? 'Войти' : 'Зарегистрироваться';
-    authToggleText.textContent = isLoginMode ? 'Нет аккаунта?' : 'Уже есть аккаунт?';
-    authToggleLink.textContent = isLoginMode ? 'Зарегистрироваться' : 'Войти';
-    authError.style.display = 'none';
-});
-
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = usernameInput.value;
     const password = passwordInput.value;
-    const endpoint = isLoginMode ? '/api/login' : '/api/register';
+    const endpoint = '/api/login';
 
     try {
         const response = await fetch(endpoint, {
@@ -253,7 +236,6 @@ authForm.addEventListener('submit', async (e) => {
 
         localStorage.setItem('chat_token', data.token);
         localStorage.setItem('chat_username', data.username);
-        // ИСПРАВЛЕНИЕ 3: Сохраняем ID при логине
         localStorage.setItem('chat_id', data.id);
         
         if (data.avatar) localStorage.setItem('chat_avatar', data.avatar);
@@ -275,9 +257,7 @@ authForm.addEventListener('submit', async (e) => {
 function updateHeaderUI() {
     let partner = null;
     
-    // ИСПРАВЛЕНИЕ 4: Ищем собеседника сравнивая ID, а не имена
     for (let [id, data] of onlineUsers) {
-        // Превращаем оба ID в строки для надежного сравнения
         if (String(id) !== String(myId)) {
             partner = data;
             break;
@@ -335,7 +315,7 @@ async function handleFileSelect(e) {
 function connectWebSocket(token, username, avatar, id) {
     clientId = username;
     clientAvatar = avatar || null;
-    myId = id; // Сохраняем свой ID
+    myId = id; 
     
     updateHeaderUI();
 
@@ -353,8 +333,6 @@ function connectWebSocket(token, username, avatar, id) {
             
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
-                    // ИСПРАВЛЕНИЕ 5: Используем ID как ключ карты.
-                    // Теперь при смене имени запись просто обновится, а не создастся дубликат.
                     if (data.id) {
                         onlineUsers.set(String(data.id), { username: data.username, avatar: data.avatar });
                         userNamesMap.set(String(data.id), data.username);
@@ -406,8 +384,6 @@ function connectWebSocket(token, username, avatar, id) {
         console.error(error);
     };
 }
-
-// ... (остальной код handleReaction, decryption, и т.д. без изменений до конца файла)
 
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
@@ -1111,7 +1087,6 @@ function displayMessage(data, type) {
     const authorName = data.username || (type === 'my-message' ? clientId : 'Пользователь');
     messageWrapper.dataset.author = authorName;
 
-    // Сохраняем ID отправителя в атрибуте для правильной работы ответов
     if (data.clientId) {
         messageWrapper.dataset.senderId = data.clientId;
     }
@@ -1271,7 +1246,6 @@ function handleReply(messageWrapper) {
     const isImage = messageElement.classList.contains('message-image');
     const isFile = messageElement.querySelector('.file-message');
     
-    // Пытаемся найти актуальное имя по ID, если нет - берем старое
     let authorName = messageWrapper.dataset.author || 'Пользователь';
     const senderId = messageWrapper.dataset.senderId;
 
@@ -1304,7 +1278,7 @@ function handleReply(messageWrapper) {
     const messageData = {
         messageId: messageWrapper.dataset.messageId,
         author: authorName, 
-        clientId: authorName, // Используем имя для отображения в превью
+        clientId: authorName, 
         type: type,
         content: replyContent
     };
