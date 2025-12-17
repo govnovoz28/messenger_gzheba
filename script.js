@@ -14,11 +14,17 @@ const sendButton = document.getElementById('send-button');
 const previewContainer = document.getElementById('image-preview-container');
 const inputArea = document.getElementById('input-area');
 
+const btnUploadPhoto = document.getElementById('btn-upload-photo');
+const btnUploadFile = document.getElementById('btn-upload-file');
+const hiddenPhotoInput = document.getElementById('hidden-photo-input');
+const hiddenFileInput = document.getElementById('hidden-file-input');
+
 const replyPreview = document.getElementById('reply-preview');
 const cancelReplyBtn = replyPreview.querySelector('.cancel-reply-btn');
 const replyAuthorSpan = replyPreview.querySelector('.reply-author');
 const replyTextDiv = replyPreview.querySelector('.reply-text');
 const replyImageIndicator = replyPreview.querySelector('.reply-image-indicator');
+const replyFileIndicator = replyPreview.querySelector('.reply-file-indicator');
 
 const headerUsername = document.getElementById('header-username');
 const headerStatus = document.getElementById('header-status');
@@ -76,6 +82,7 @@ const onlineUsers = new Map();
 const IMG_MAX_WIDTH = 1920;
 const IMG_MAX_HEIGHT = 1920;
 const IMG_QUALITY = 0.8;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; 
 
 let stagedFiles = [];
 let messageCounter = 0;
@@ -267,6 +274,29 @@ partnerAvatar.addEventListener('click', (e) => {
     }
 });
 
+btnUploadPhoto.addEventListener('click', () => {
+    hiddenPhotoInput.click();
+});
+
+btnUploadFile.addEventListener('click', () => {
+    hiddenFileInput.click();
+});
+
+hiddenPhotoInput.addEventListener('change', handleFileSelect);
+hiddenFileInput.addEventListener('change', handleFileSelect);
+
+async function handleFileSelect(e) {
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`Файл ${file.name} слишком большой (макс 5MB)`);
+            continue;
+        }
+        await addFileToStage(file);
+    }
+    e.target.value = ''; 
+}
+
 function connectWebSocket(token, username, avatar) {
     authModal.style.display = 'none';
     clientId = username;
@@ -302,7 +332,7 @@ function connectWebSocket(token, username, avatar) {
                 const msgToRemove = document.querySelector(`[data-message-id="${data.messageId}"]`);
                 if (msgToRemove) msgToRemove.remove();
                 updateRepliesOnDelete(data.messageId);
-            } else if (data.type === 'text' || data.type === 'image' || data.type === 'info') {
+            } else if (data.type === 'text' || data.type === 'image' || data.type === 'file' || data.type === 'info') {
                 const type = data.username === clientId ? 'my-message' : 'friend-message';
                 displayMessage(data, type);
                 notifyNewMessage();
@@ -433,13 +463,35 @@ async function processAndCompressImage(file) {
     });
 }
 
+function getBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
 async function addFileToStage(file) {
     try {
-        const compressedContent = await processAndCompressImage(file);
+        let content;
+        let type;
+        
+        if (file.type.startsWith('image/')) {
+            content = await processAndCompressImage(file);
+            type = 'image';
+        } else {
+            content = await getBase64(file);
+            type = 'file';
+        }
+
         const id = Date.now() + Math.random().toString(36).substr(2, 9);
         stagedFiles.push({
             id: id,
-            content: compressedContent,
+            content: content,
+            type: type,
+            name: file.name,
+            size: file.size,
             isSpoiler: false
         });
         renderPreview();
@@ -454,7 +506,7 @@ function setReplyTo(messageData) {
     
     replyToMessage = {
         id: messageData.messageId || messageData.id,
-        author: messageData.clientId === clientId ? 'Вы' : (messageData.clientId || 'Пользователь'),
+        author: messageData.author === clientId ? 'Вы' : messageData.author,
         content: messageData.content,
         type: messageData.type
     };
@@ -462,13 +514,17 @@ function setReplyTo(messageData) {
     replyAuthorSpan.textContent = `${replyToMessage.author}`;
     replyPreview.classList.remove('edit-mode');
 
+    replyTextDiv.style.display = 'none';
+    replyImageIndicator.style.display = 'none';
+    replyFileIndicator.style.display = 'none';
+
     if (replyToMessage.type === 'image') {
-        replyTextDiv.style.display = 'none';
         replyImageIndicator.style.display = 'block';
+    } else if (replyToMessage.type === 'file') {
+        replyFileIndicator.style.display = 'block';
     } else {
         replyTextDiv.textContent = replyToMessage.content;
         replyTextDiv.style.display = 'block';
-        replyImageIndicator.style.display = 'none';
     }
 
     replyPreview.style.display = 'block';
@@ -499,6 +555,7 @@ function setEditMode(messageWrapper) {
     replyTextDiv.textContent = content;
     replyTextDiv.style.display = 'block';
     replyImageIndicator.style.display = 'none';
+    replyFileIndicator.style.display = 'none';
     
     replyPreview.classList.add('edit-mode');
     replyPreview.style.display = 'block';
@@ -988,6 +1045,9 @@ function displayMessage(data, type) {
         messageWrapper.classList.add('message-wrapper', type === 'my-message' ? 'my-message-wrapper' : 'friend-message-wrapper');
     }
 
+    const authorName = data.username || (type === 'my-message' ? clientId : 'Пользователь');
+    messageWrapper.dataset.author = authorName;
+
     messageWrapper.dataset.messageId = data.messageId || `${clientId}-${messageCounter++}`;
 
     if (data.replyTo) {
@@ -1006,6 +1066,11 @@ function displayMessage(data, type) {
             imageIndicator.className = 'reply-image-indicator';
             imageIndicator.textContent = '📷 Изображение';
             replyInfo.appendChild(imageIndicator);
+        } else if (data.replyTo.type === 'file') {
+            const fileIndicator = document.createElement('div');
+            fileIndicator.className = 'reply-file-indicator';
+            fileIndicator.textContent = '📁 Файл';
+            replyInfo.appendChild(fileIndicator);
         } else {
             const replyText = document.createElement('div');
             replyText.className = 'reply-text';
@@ -1017,11 +1082,19 @@ function displayMessage(data, type) {
 
     let messageElement;
     let images = [];
+    let files = [];
+
     if (data.type === 'image') {
         if (data.images && Array.isArray(data.images)) {
             images = data.images;
         } else if (data.content && data.content.startsWith('data:image')) {
              images = [{ content: data.content, isSpoiler: data.isSpoiler }];
+        }
+    } else if (data.type === 'file') {
+        if (data.files && Array.isArray(data.files)) {
+            files = data.files;
+        } else if (data.content) {
+            files = [{ content: data.content, name: data.name || 'file', size: data.size || 0 }];
         }
     }
 
@@ -1068,6 +1141,34 @@ function displayMessage(data, type) {
             
             messageElement.appendChild(textDiv);
         }
+    } else if (files.length > 0) {
+        messageElement = document.createElement('div');
+        messageElement.classList.add('message', type);
+        
+        files.forEach(f => {
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file-message';
+            
+            fileDiv.innerHTML = `
+                <div class="file-icon"><i class="fa-solid fa-file"></i></div>
+                <div class="file-info">
+                    <span class="file-name" title="${f.name}">${f.name}</span>
+                    <span class="file-size">${(f.size / 1024).toFixed(1)} KB</span>
+                </div>
+                <a href="${f.content}" download="${f.name}" class="file-download-btn"><i class="fa-solid fa-download"></i></a>
+            `;
+            messageElement.appendChild(fileDiv);
+        });
+
+        if (data.text) {
+            const textDiv = document.createElement('div');
+            textDiv.className = 'message-caption';
+            textDiv.style.paddingTop = '5px';
+            textDiv.textContent = data.text;
+            parseEmojis(textDiv);
+            messageElement.appendChild(textDiv);
+        }
+
     } else if (data.type === 'text' || data.type === 'info') {
         messageElement = document.createElement('div');
         
@@ -1100,9 +1201,22 @@ function handleReply(messageWrapper) {
 
     const messageElement = messageWrapper.querySelector('.message');
     const isImage = messageElement.classList.contains('message-image');
+    const isFile = messageElement.querySelector('.file-message');
     
+    const authorName = messageWrapper.dataset.author || 'Пользователь';
+
     let replyContent = 'Изображение';
+    let type = 'text';
+
     if (isImage) {
+        type = 'image';
+        const caption = messageElement.querySelector('.message-caption');
+        if (caption) {
+            replyContent = caption.textContent;
+        }
+    } else if (isFile) {
+        type = 'file';
+        replyContent = 'Файл';
         const caption = messageElement.querySelector('.message-caption');
         if (caption) {
             replyContent = caption.textContent;
@@ -1113,8 +1227,9 @@ function handleReply(messageWrapper) {
     
     const messageData = {
         messageId: messageWrapper.dataset.messageId,
-        clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'Пользователь',
-        type: isImage && replyContent === 'Изображение' ? 'image' : 'text',
+        author: authorName, 
+        clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'Пользователь', 
+        type: type,
         content: replyContent
     };
 
@@ -1204,9 +1319,17 @@ function renderPreview() {
         if (file.isSpoiler) item.classList.add('is-spoiler');
         item.dataset.index = index;
 
-        const img = document.createElement('img');
-        img.src = file.content;
-        if (file.isSpoiler) img.classList.add('spoiler-preview');
+        if (file.type === 'image') {
+            const img = document.createElement('img');
+            img.src = file.content;
+            if (file.isSpoiler) img.classList.add('spoiler-preview');
+            item.appendChild(img);
+        } else {
+            const icon = document.createElement('div');
+            icon.className = 'file-preview-icon';
+            icon.innerHTML = '<i class="fa-solid fa-file"></i>';
+            item.appendChild(icon);
+        }
         
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-preview-btn';
@@ -1223,15 +1346,16 @@ function renderPreview() {
         spoilerIndicator.className = 'spoiler-indicator';
         spoilerIndicator.textContent = 'SPOILER';
 
-        item.appendChild(img);
         item.appendChild(removeBtn);
-        item.appendChild(spoilerIndicator);
+        if (file.type === 'image') item.appendChild(spoilerIndicator);
 
         item.addEventListener('dragstart', handleDragStart);
         item.addEventListener('dragover', handleDragOver);
         item.addEventListener('drop', handleDrop);
         item.addEventListener('dragend', handleDragEnd);
-        item.addEventListener('contextmenu', (e) => handlePreviewContextMenu(e, index));
+        if (file.type === 'image') {
+            item.addEventListener('contextmenu', (e) => handlePreviewContextMenu(e, index));
+        }
 
         previewContainer.appendChild(item);
     });
@@ -1338,14 +1462,23 @@ function sendMessage() {
         replyTo: replyToMessage || null
     };
 
-    if (stagedFiles.length > 0) {
+    const images = stagedFiles.filter(f => f.type === 'image');
+    const files = stagedFiles.filter(f => f.type === 'file');
+
+    if (images.length > 0) {
         messageData = {
             ...messageData,
             type: 'image',
-            images: stagedFiles.map(f => ({ content: f.content, isSpoiler: f.isSpoiler })),
+            images: images.map(f => ({ content: f.content, isSpoiler: f.isSpoiler })),
             text: messageText
         };
-        clearStagedFiles();
+    } else if (files.length > 0) {
+        messageData = {
+            ...messageData,
+            type: 'file',
+            files: files.map(f => ({ content: f.content, name: f.name, size: f.size })),
+            text: messageText
+        };
     } else {
         if (messageText === '' && !replyToMessage) return;
         messageData = {
@@ -1354,7 +1487,9 @@ function sendMessage() {
             content: messageText || '(пустое сообщение)'
         };
     }
+
     messageInput.value = '';
+    clearStagedFiles();
     
     socket.send(JSON.stringify(messageData));
     displayMessage(messageData, 'my-message');
@@ -1429,9 +1564,11 @@ inputArea.addEventListener('drop', async (e) => {
 
     const files = Array.from(e.dataTransfer.files);
     for (const file of files) {
-        if (file.type.startsWith('image/')) {
-            await addFileToStage(file);
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`Файл ${file.name} слишком большой (макс 5MB)`);
+            continue;
         }
+        await addFileToStage(file);
     }
 });
 
@@ -1656,7 +1793,9 @@ document.addEventListener('click', (event) => {
         '.auth-content',
         '.profile-content',
         '#side-menu',
-        '#menu-btn'
+        '#menu-btn',
+        '.attach-menu',
+        '#attach-btn'
     ];
 
     const isInteractive = interactiveSelectors.some(selector => event.target.closest(selector));
