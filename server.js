@@ -113,6 +113,7 @@ function broadcast(data, senderWs) {
 function broadcastUserStatus(userData, status) {
     const data = { 
         type: 'partner_status', 
+        id: userData.id, // ДОБАВЛЕНО: передача ID
         username: userData.username, 
         avatar: userData.avatar,
         status: status 
@@ -161,6 +162,7 @@ wss.on('connection', (ws, req) => {
                 if (clientWs !== ws) {
                     ws.send(JSON.stringify({ 
                         type: 'partner_status', 
+                        id: uData.id, // ДОБАВЛЕНО: передача ID
                         username: uData.username, 
                         avatar: uData.avatar,
                         status: 'online' 
