@@ -8,6 +8,7 @@ const authError = document.getElementById('auth-error');
 const usernameInput = document.getElementById('auth-username');
 const passwordInput = document.getElementById('auth-password');
 
+const mainWrapper = document.getElementById('main-wrapper');
 const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
@@ -110,7 +111,8 @@ if (savedToken && savedUsername) {
     connectWebSocket(savedToken, savedUsername, savedAvatar);
 }
 
-menuBtn.addEventListener('click', () => {
+menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
     sidebar.classList.toggle('expanded');
 });
 
@@ -299,6 +301,7 @@ async function handleFileSelect(e) {
 
 function connectWebSocket(token, username, avatar) {
     authModal.style.display = 'none';
+    mainWrapper.style.display = 'flex';
     clientId = username;
     clientAvatar = avatar || null;
     updateHeaderUI();
@@ -999,6 +1002,15 @@ function updateRepliesOnDelete(deletedMessageId) {
     replies.forEach(reply => {
         reply.classList.add('deleted');
         reply.innerHTML = '<span class="reply-content-deleted"><i class="fa-solid fa-ban"></i> Удаленное сообщение</span>';
+        
+        const imageIndicator = reply.querySelector('.reply-image-indicator');
+        if (imageIndicator) imageIndicator.style.display = 'none';
+        
+        const fileIndicator = reply.querySelector('.reply-file-indicator');
+        if (fileIndicator) fileIndicator.style.display = 'none';
+        
+        const textDiv = reply.querySelector('.reply-text');
+        if (textDiv) textDiv.style.display = 'none';
     });
 }
 
@@ -1802,5 +1814,9 @@ document.addEventListener('click', (event) => {
 
     if (!isInteractive && authModal.style.display === 'none') {
         focusMessageInput();
+    }
+
+    if (sidebar.classList.contains('expanded') && !sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+        sidebar.classList.remove('expanded');
     }
 });
