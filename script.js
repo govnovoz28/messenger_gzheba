@@ -34,7 +34,6 @@ const profileUsernameInput = document.getElementById('profile-username-input');
 const profileAvatarInput = document.getElementById('profile-avatar-input');
 const profileAvatarPreview = document.getElementById('profile-avatar-preview');
 const profileAvatarPlaceholder = document.getElementById('profile-avatar-placeholder');
-const myMiniAvatar = document.getElementById('my-mini-avatar');
 
 const modal = document.getElementById('image-modal');
 const modalImg = document.getElementById('modal-image');
@@ -110,6 +109,10 @@ menuBtn.addEventListener('click', () => {
 
 openProfileBtn.addEventListener('click', () => {
     profileModal.style.display = 'flex';
+    setTimeout(() => {
+        profileModal.classList.add('modal-visible');
+    }, 10);
+    
     profileUsernameInput.value = clientId;
     if (clientAvatar) {
         profileAvatarPreview.src = clientAvatar;
@@ -123,7 +126,10 @@ openProfileBtn.addEventListener('click', () => {
 });
 
 profileCloseBtn.addEventListener('click', () => {
-    profileModal.style.display = 'none';
+    profileModal.classList.remove('modal-visible');
+    setTimeout(() => {
+        profileModal.style.display = 'none';
+    }, 300);
 });
 
 profileAvatarInput.addEventListener('change', async (e) => {
@@ -162,8 +168,6 @@ saveProfileBtn.addEventListener('click', async () => {
             localStorage.setItem('chat_username', data.username);
             if(data.avatar) localStorage.setItem('chat_avatar', data.avatar);
             else localStorage.removeItem('chat_avatar');
-
-            updateMyAvatarUI();
             
             socket.send(JSON.stringify({
                 type: 'profile_update',
@@ -171,7 +175,10 @@ saveProfileBtn.addEventListener('click', async () => {
                 avatar: clientAvatar
             }));
 
-            profileModal.style.display = 'none';
+            profileModal.classList.remove('modal-visible');
+            setTimeout(() => {
+                profileModal.style.display = 'none';
+            }, 300);
         } else {
             alert(data.error);
         }
@@ -181,14 +188,6 @@ saveProfileBtn.addEventListener('click', async () => {
         alert("Ошибка сохранения профиля");
     }
 });
-
-function updateMyAvatarUI() {
-    if (clientAvatar) {
-        myMiniAvatar.innerHTML = `<img src="${clientAvatar}">`;
-    } else {
-        myMiniAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
-    }
-}
 
 authToggleLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -264,7 +263,6 @@ function connectWebSocket(token, username, avatar) {
     authModal.style.display = 'none';
     clientId = username;
     clientAvatar = avatar || null;
-    updateMyAvatarUI();
     updateHeaderUI();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
