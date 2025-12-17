@@ -79,6 +79,8 @@ let clientId = null;
 let clientAvatar = null;
 let isLoginMode = true;
 const onlineUsers = new Map(); 
+// Добавляем карту ID -> Имя для синхронизации
+const userNamesMap = new Map();
 
 const IMG_MAX_WIDTH = 1920;
 const IMG_MAX_HEIGHT = 1920;
@@ -146,7 +148,6 @@ profileCloseBtn.addEventListener('click', () => {
     }, 300);
 });
 
-// Добавлена логика закрытия по клику на фон
 profileModal.addEventListener('click', (event) => {
     if (event.target === profileModal) {
         profileModal.classList.remove('modal-visible');
@@ -336,6 +337,10 @@ function connectWebSocket(token, username, avatar) {
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
                     onlineUsers.set(data.username, { username: data.username, avatar: data.avatar });
+                    // Сохраняем актуальное имя для ID
+                    if (data.id) {
+                        userNamesMap.set(String(data.id), data.username);
+                    }
                 } else {
                     onlineUsers.delete(data.username);
                 }
@@ -355,6 +360,10 @@ function connectWebSocket(token, username, avatar) {
                 if (msgToRemove) msgToRemove.remove();
                 updateRepliesOnDelete(data.messageId);
             } else if (data.type === 'text' || data.type === 'image' || data.type === 'file' || data.type === 'info') {
+                // Если пришло сообщение, обновляем мапу
+                if (data.clientId && data.username) {
+                    userNamesMap.set(String(data.clientId), data.username);
+                }
                 const type = data.username === clientId ? 'my-message' : 'friend-message';
                 displayMessage(data, type);
                 notifyNewMessage();
@@ -370,6 +379,7 @@ function connectWebSocket(token, username, avatar) {
         authError.textContent = "Соединение разорвано";
         authError.style.display = 'block';
         onlineUsers.clear();
+        userNamesMap.clear();
         updateHeaderUI();
     };
 
@@ -1080,6 +1090,11 @@ function displayMessage(data, type) {
     const authorName = data.username || (type === 'my-message' ? clientId : 'Пользователь');
     messageWrapper.dataset.author = authorName;
 
+    // Сохраняем ID отправителя в атрибуте для правильной работы ответов
+    if (data.clientId) {
+        messageWrapper.dataset.senderId = data.clientId;
+    }
+
     messageWrapper.dataset.messageId = data.messageId || `${clientId}-${messageCounter++}`;
 
     if (data.replyTo) {
@@ -1235,7 +1250,15 @@ function handleReply(messageWrapper) {
     const isImage = messageElement.classList.contains('message-image');
     const isFile = messageElement.querySelector('.file-message');
     
-    const authorName = messageWrapper.dataset.author || 'Пользователь';
+    // Пытаемся найти актуальное имя по ID, если нет - берем старое
+    let authorName = messageWrapper.dataset.author || 'Пользователь';
+    const senderId = messageWrapper.dataset.senderId;
+
+    if (senderId && userNamesMap.has(String(senderId))) {
+        authorName = userNamesMap.get(String(senderId));
+    } else if (messageWrapper.classList.contains('my-message-wrapper')) {
+        authorName = clientId;
+    }
 
     let replyContent = 'Изображение';
     let type = 'text';
@@ -1260,7 +1283,7 @@ function handleReply(messageWrapper) {
     const messageData = {
         messageId: messageWrapper.dataset.messageId,
         author: authorName, 
-        clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'Пользователь', 
+        clientId: authorName, // Используем имя для отображения в превью
         type: type,
         content: replyContent
     };
