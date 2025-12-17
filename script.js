@@ -259,6 +259,14 @@ function updateHeaderUI() {
     }
 }
 
+partnerAvatar.addEventListener('click', (e) => {
+    const img = partnerAvatar.querySelector('img');
+    if (img) {
+        e.stopPropagation();
+        openModal([img.src], 0);
+    }
+});
+
 function connectWebSocket(token, username, avatar) {
     authModal.style.display = 'none';
     clientId = username;
