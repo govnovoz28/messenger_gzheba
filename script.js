@@ -131,6 +131,9 @@ function connectWebSocket(token, username) {
     authModal.style.display = 'none';
     clientId = username;
 
+    // Вот эта часть автоматически определяет адрес:
+    // Если на Render (https), то будет wss://messenger-gzheba.onrender.com
+    // Если локально (http), то будет ws://localhost:8080
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     socket = new WebSocket(`${protocol}//${host}?token=${token}`);
