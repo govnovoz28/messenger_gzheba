@@ -1,9 +1,18 @@
-const socket = new WebSocket('wss://messenger-gzheba.onrender.com');
+const authModal = document.getElementById('auth-modal');
+const authForm = document.getElementById('auth-form');
+const authTitle = document.getElementById('auth-title');
+const authSubmit = document.getElementById('auth-submit');
+const authToggleLink = document.getElementById('auth-toggle-link');
+const authToggleText = document.getElementById('auth-toggle-text');
+const authError = document.getElementById('auth-error');
+const usernameInput = document.getElementById('auth-username');
+const passwordInput = document.getElementById('auth-password');
 
 const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('message-input');
 const sendButton = document.getElementById('send-button');
 const previewContainer = document.getElementById('image-preview-container');
+const inputArea = document.getElementById('input-area');
 
 const replyPreview = document.getElementById('reply-preview');
 const cancelReplyBtn = replyPreview.querySelector('.cancel-reply-btn');
@@ -26,18 +35,163 @@ modalNextBtn.className = 'modal-nav modal-next';
 modalNextBtn.innerHTML = '&#10095;';
 modal.appendChild(modalNextBtn);
 
-const clientId = 'user-' + Date.now() + Math.random();
+const deleteModal = document.createElement('div');
+deleteModal.id = 'delete-modal';
+deleteModal.innerHTML = `
+    <div class="delete-popup">
+        <h3>Удалить это сообщение?</h3>
+        <div class="delete-checkbox-wrapper">
+            <input type="checkbox" id="delete-for-all-checkbox" checked>
+            <label for="delete-for-all-checkbox">Также удалить для всех</label>
+        </div>
+        <div class="delete-actions">
+            <button class="delete-cancel-btn">Отмена</button>
+            <button class="delete-confirm-btn">Удалить</button>
+        </div>
+    </div>
+`;
+document.body.appendChild(deleteModal);
 
-let stagedFiles = []; 
+let socket = null;
+let clientId = null;
+let isLoginMode = true;
+
+const IMG_MAX_WIDTH = 1920;
+const IMG_MAX_HEIGHT = 1920;
+const IMG_QUALITY = 0.8;
+
+let stagedFiles = [];
 let messageCounter = 0;
 let replyToMessage = null;
+let editingMessageId = null;
 let currentGalleryImages = [];
 let currentGalleryIndex = 0;
+let isInternalDrag = false;
+let messageToDelete = null;
+
+let originalTitle = document.title;
+let blinkInterval = null;
+let unreadCount = 0;
 
 const localReactions = new Map();
 const emojiCache = new Map();
 const encryptionCache = new Map();
 const decryptionCache = new Map();
+
+const savedToken = localStorage.getItem('chat_token');
+const savedUsername = localStorage.getItem('chat_username');
+
+if (savedToken && savedUsername) {
+    connectWebSocket(savedToken, savedUsername);
+}
+
+authToggleLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    isLoginMode = !isLoginMode;
+    authTitle.textContent = isLoginMode ? 'Вход' : 'Регистрация';
+    authSubmit.textContent = isLoginMode ? 'Войти' : 'Зарегистрироваться';
+    authToggleText.textContent = isLoginMode ? 'Нет аккаунта?' : 'Уже есть аккаунт?';
+    authToggleLink.textContent = isLoginMode ? 'Зарегистрироваться' : 'Войти';
+    authError.style.display = 'none';
+});
+
+authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = usernameInput.value;
+    const password = passwordInput.value;
+    const endpoint = isLoginMode ? '/api/login' : '/api/register';
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Ошибка');
+        }
+
+        localStorage.setItem('chat_token', data.token);
+        localStorage.setItem('chat_username', data.username);
+        
+        connectWebSocket(data.token, data.username);
+        usernameInput.value = '';
+        passwordInput.value = '';
+
+    } catch (err) {
+        authError.textContent = err.message;
+        authError.style.display = 'block';
+    }
+});
+
+function connectWebSocket(token, username) {
+    authModal.style.display = 'none';
+    clientId = username;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    socket = new WebSocket(`${protocol}//${host}?token=${token}`);
+
+    socket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.username === clientId && data.type !== 'edit' && data.type !== 'delete') return;
+
+            if (data.type === 'reaction') {
+                handleReactionFromServer(data);
+            } else if (data.type === 'edit') {
+                updateMessageContent(data.messageId, data.content);
+                updateRepliesOnEdit(data.messageId, data.content);
+            } else if (data.type === 'delete') {
+                const msgToRemove = document.querySelector(`[data-message-id="${data.messageId}"]`);
+                if (msgToRemove) msgToRemove.remove();
+                updateRepliesOnDelete(data.messageId);
+            } else if (data.type === 'text' || data.type === 'image' || data.type === 'info') {
+                const type = data.username === clientId ? 'my-message' : 'friend-message';
+                displayMessage(data, type);
+                notifyNewMessage();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    socket.onclose = () => {
+        authModal.style.display = 'flex';
+        authError.textContent = "Соединение разорвано";
+        authError.style.display = 'block';
+    };
+
+    socket.onerror = (error) => {
+        console.error(error);
+    };
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        clearInterval(blinkInterval);
+        blinkInterval = null;
+        unreadCount = 0;
+        document.title = originalTitle;
+    }
+});
+
+function notifyNewMessage() {
+    if (document.hidden) {
+        unreadCount++;
+        if (!blinkInterval) {
+            let state = false;
+            blinkInterval = setInterval(() => {
+                document.title = state ? originalTitle : `${unreadCount} непрочитанное сообщение`;
+                state = !state;
+            }, 1000);
+        }
+    }
+}
 
 function parseEmojis(element) {
     if (typeof twemoji !== 'undefined') {
@@ -45,7 +199,7 @@ function parseEmojis(element) {
             twemoji.parse(element, {
                 folder: 'svg',
                 ext: '.svg',
-                base: 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/',
+                base: 'https://cdn.jsdelivr.gh/jdecked/twemoji@latest/assets/',
                 callback: function(icon) {
                     if (!emojiCache.has(icon)) {
                         emojiCache.set(icon, `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/${icon}.svg`);
@@ -62,7 +216,6 @@ const encryptionMap = {
     'х': 'х', 'ъ': 'ъ', 'ф': '@', 'ы': '#', 'в': '₽', 'а': '–', 'п': '&', 'р': '若', 'о': '+', 'л': '(',
     'д': ')', 'ж': '№', 'э': '∼', 'я': '*', 'ч': 'ㅘ', 'м': ':', 'и': ';', 'т': 'ト', 'ь': 'ª',
     'б': 'ﹴ', 'ю': '%', '.': '!?',
-
     'Й': '1', 'Ц': '2', 'У': '3', 'К': '4', 'Е': '5', 'Н': '6', 'Г': '7', 'Ш': '8', 'Щ': '9', 'З': '0',
     'Х': 'х', 'Ъ': 'ъ', 'Ф': '@', 'Ы': '#', 'В': '₽', 'А': '–', 'П': '&', 'Р': '若', 'О': '+', 'Л': '(',
     'Д': ')', 'Ж': '№', 'Э': '∼', 'Я': '*', 'Ч': 'ㅘ', 'М': ':', 'И': ';', 'Т': 'ト', 'Ь': 'ª',
@@ -85,15 +238,75 @@ const availableReactions = [
     '😎', '😈'
 ];
 
+async function processAndCompressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > IMG_MAX_WIDTH) {
+                        height *= IMG_MAX_WIDTH / width;
+                        width = IMG_MAX_WIDTH;
+                    }
+                } else {
+                    if (height > IMG_MAX_HEIGHT) {
+                        width *= IMG_MAX_HEIGHT / height;
+                        height = IMG_MAX_HEIGHT;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', IMG_QUALITY);
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = event.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function addFileToStage(file) {
+    try {
+        const compressedContent = await processAndCompressImage(file);
+        const id = Date.now() + Math.random().toString(36).substr(2, 9);
+        stagedFiles.push({
+            id: id,
+            content: compressedContent,
+            isSpoiler: false
+        });
+        renderPreview();
+        toggleSendButton();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 function setReplyTo(messageData) {
+    if (editingMessageId) cancelEdit();
+    
     replyToMessage = {
         id: messageData.messageId || messageData.id,
-        author: messageData.clientId === clientId ? 'Вы' : 'Пользователь',
+        author: messageData.clientId === clientId ? 'Вы' : (messageData.clientId || 'Пользователь'),
         content: messageData.content,
         type: messageData.type
     };
 
-    replyAuthorSpan.textContent = `Ответ ${replyToMessage.author}`;
+    replyAuthorSpan.textContent = `${replyToMessage.author}`;
+    replyPreview.classList.remove('edit-mode');
 
     if (replyToMessage.type === 'image') {
         replyTextDiv.style.display = 'none';
@@ -105,18 +318,70 @@ function setReplyTo(messageData) {
     }
 
     replyPreview.style.display = 'block';
-    messageInput.placeholder = 'Ответить...';
-    messageInput.focus();
-}
-
-function cancelReply() {
-    replyToMessage = null;
-    replyPreview.style.display = 'none';
     messageInput.placeholder = 'Сообщение...';
     messageInput.focus();
 }
 
-cancelReplyBtn.addEventListener('click', cancelReply);
+function setEditMode(messageWrapper) {
+    if (replyToMessage) cancelReply();
+
+    const messageId = messageWrapper.dataset.messageId;
+    let content = '';
+    const captionElement = messageWrapper.querySelector('.message-caption');
+    const textElement = messageWrapper.querySelector('.message.text');
+
+    if (captionElement) {
+        content = captionElement.textContent;
+    } else if (textElement) {
+        content = textElement.textContent.replace(' (ред.)', '');
+    }
+
+    if (!content && !messageWrapper.querySelector('.message-image')) return;
+
+    editingMessageId = messageId;
+    messageInput.value = content;
+    
+    replyAuthorSpan.textContent = 'Изменить сообщение';
+    replyTextDiv.textContent = content;
+    replyTextDiv.style.display = 'block';
+    replyImageIndicator.style.display = 'none';
+    
+    replyPreview.classList.add('edit-mode');
+    replyPreview.style.display = 'block';
+    
+    messageInput.placeholder = 'Редактировать сообщение...';
+    messageInput.focus();
+    toggleSendButton();
+}
+
+function cancelReply() {
+    replyToMessage = null;
+    editingMessageId = null;
+    replyPreview.classList.remove('edit-mode');
+    replyPreview.style.display = 'none';
+    messageInput.placeholder = 'Сообщение...';
+    messageInput.value = '';
+    toggleSendButton();
+    messageInput.focus();
+}
+
+function cancelEdit() {
+    editingMessageId = null;
+    replyPreview.classList.remove('edit-mode');
+    replyPreview.style.display = 'none';
+    messageInput.placeholder = 'Сообщение...';
+    messageInput.value = '';
+    toggleSendButton();
+    messageInput.focus();
+}
+
+cancelReplyBtn.addEventListener('click', () => {
+    if (editingMessageId) {
+        cancelEdit();
+    } else {
+        cancelReply();
+    }
+});
 
 function closeAllPopups() {
     document.querySelectorAll('.emoji-picker, .context-menu').forEach(el => el.remove());
@@ -217,6 +482,18 @@ function createContextMenu(messageWrapper, picker) {
     });
     menu.appendChild(replyBtn);
 
+    if (messageWrapper.classList.contains('my-message-wrapper')) {
+        const editBtn = document.createElement('button');
+        editBtn.className = 'context-btn';
+        editBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Изменить';
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setEditMode(messageWrapper);
+            closeAllPopups();
+        });
+        menu.appendChild(editBtn);
+    }
+
     const copyBtn = document.createElement('button');
     copyBtn.className = 'context-btn';
     copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i> Копировать';
@@ -226,6 +503,16 @@ function createContextMenu(messageWrapper, picker) {
         closeAllPopups();
     });
     menu.appendChild(copyBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'context-btn';
+    deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Удалить';
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDeleteModal(messageWrapper);
+        closeAllPopups();
+    });
+    menu.appendChild(deleteBtn);
 
     const img = messageWrapper.querySelector('img[data-is-spoiler="true"]');
     if (img && !img.classList.contains('spoiler')) {
@@ -248,6 +535,56 @@ function createContextMenu(messageWrapper, picker) {
     menu.style.left = `${window.scrollX + pickerRect.left + pickerRect.width / 2}px`;
 }
 
+function openDeleteModal(messageWrapper) {
+    messageToDelete = messageWrapper;
+    deleteModal.style.display = 'flex';
+    
+    const checkbox = document.getElementById('delete-for-all-checkbox');
+    checkbox.checked = true; 
+
+    setTimeout(() => {
+        deleteModal.classList.add('visible');
+    }, 10);
+}
+
+function closeDeleteModal() {
+    deleteModal.classList.remove('visible');
+    setTimeout(() => {
+        deleteModal.style.display = 'none';
+        messageToDelete = null;
+    }, 200);
+}
+
+deleteModal.querySelector('.delete-confirm-btn').addEventListener('click', () => {
+    if (!messageToDelete) {
+        closeDeleteModal();
+        return;
+    }
+
+    const checkbox = document.getElementById('delete-for-all-checkbox');
+    const messageId = messageToDelete.dataset.messageId;
+
+    if (messageId) {
+        messageToDelete.remove(); 
+        
+        updateRepliesOnDelete(messageId);
+
+        if (checkbox.checked) {
+            socket.send(JSON.stringify({
+                type: 'delete',
+                messageId: messageId,
+                clientId: clientId
+            }));
+        }
+    }
+    closeDeleteModal();
+});
+
+deleteModal.querySelector('.delete-cancel-btn').addEventListener('click', closeDeleteModal);
+deleteModal.addEventListener('click', (e) => {
+    if (e.target === deleteModal) closeDeleteModal();
+});
+
 function updateReactionsDisplay(messageWrapper, messageId) {
     const messageReactions = localReactions.get(messageId);
     messageWrapper.querySelector('.reactions-container')?.remove();
@@ -265,7 +602,8 @@ function updateReactionsDisplay(messageWrapper, messageId) {
             reaction.dataset.emoji = emoji;
 
             const count = userIds.size;
-            reaction.innerHTML = `${count > 1 ? count : ''} <span class="emoji-in-reaction">${emoji}</span>`;
+            reaction.innerHTML = `<span class="emoji-in-reaction">${emoji}</span>${count > 1 ? `<span class="reaction-count">${count}</span>` : ''}`;
+
 
             if (userIds.has(clientId)) {
                 reaction.classList.add('my-reaction');
@@ -433,14 +771,77 @@ function scrollToBottom() {
     });
 }
 
+function updateRepliesOnEdit(originalMessageId, newContent) {
+    const replies = document.querySelectorAll(`.reply-info[data-reply-to-id="${originalMessageId}"]`);
+    replies.forEach(reply => {
+        const textDiv = reply.querySelector('.reply-text');
+        
+        if(textDiv) {
+            textDiv.textContent = newContent;
+            parseEmojis(textDiv);
+        }
+    });
+}
+
+function updateRepliesOnDelete(deletedMessageId) {
+    const replies = document.querySelectorAll(`.reply-info[data-reply-to-id="${deletedMessageId}"]`);
+    replies.forEach(reply => {
+        reply.classList.add('deleted');
+        reply.innerHTML = '<span class="reply-content-deleted"><i class="fa-solid fa-ban"></i> Удаленное сообщение</span>';
+    });
+}
+
+function updateMessageContent(messageId, newContent) {
+    const messageWrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (!messageWrapper) return;
+
+    let targetElement = messageWrapper.querySelector('.message-caption');
+    if (!targetElement) {
+        targetElement = messageWrapper.querySelector('.message.text');
+    }
+
+    if (targetElement) {
+        const isEncrypted = isEncryptedMessage(newContent);
+        
+        targetElement.textContent = newContent;
+        parseEmojis(targetElement);
+
+        if (!targetElement.querySelector('.edited-label')) {
+            const editedLabel = document.createElement('span');
+            editedLabel.className = 'edited-label';
+            editedLabel.textContent = ' (ред.)';
+            targetElement.appendChild(editedLabel);
+        }
+
+        if (isEncrypted && !messageWrapper.classList.contains('my-message-wrapper')) {
+            const existingBtn = messageWrapper.querySelector('.translate-btn');
+            if (existingBtn) existingBtn.remove();
+            const existingTranslation = messageWrapper.querySelector('.translation');
+            if (existingTranslation) existingTranslation.remove();
+
+            const translateBtn = createTranslateButton(targetElement, newContent);
+            targetElement.appendChild(translateBtn);
+        }
+    }
+}
+
 function displayMessage(data, type) {
     const messageWrapper = document.createElement('div');
-    messageWrapper.classList.add('message-wrapper', type === 'my-message' ? 'my-message-wrapper' : 'friend-message-wrapper');
+    
+    if (data.type === 'info') {
+        messageWrapper.classList.add('message-wrapper', 'system-message-wrapper');
+    } else {
+        messageWrapper.classList.add('message-wrapper', type === 'my-message' ? 'my-message-wrapper' : 'friend-message-wrapper');
+    }
+
     messageWrapper.dataset.messageId = data.messageId || `${clientId}-${messageCounter++}`;
 
     if (data.replyTo) {
         const replyInfo = document.createElement('div');
         replyInfo.className = 'reply-info';
+        
+        replyInfo.dataset.replyToId = data.replyTo.id; 
+        
         const replyAuthor = document.createElement('span');
         replyAuthor.className = 'reply-author';
         replyAuthor.textContent = data.replyTo.author;
@@ -515,12 +916,21 @@ function displayMessage(data, type) {
         }
     } else if (data.type === 'text' || data.type === 'info') {
         messageElement = document.createElement('div');
-        messageElement.classList.add('message', type);
+        
+        if (data.type === 'info') {
+             messageElement.classList.add('message', 'system-message');
+        } else {
+             messageElement.classList.add('message', 'text', type);
+        }
+        
         messageElement.textContent = data.content;
-        parseEmojis(messageElement);
-        if (data.type === 'text' && type === 'friend-message' && isEncryptedMessage(data.content)) {
-            const translateBtn = createTranslateButton(messageElement, data.content);
-            messageElement.appendChild(translateBtn);
+        
+        if (data.type !== 'info') {
+            parseEmojis(messageElement);
+            if (data.type === 'text' && type === 'friend-message' && isEncryptedMessage(data.content)) {
+                const translateBtn = createTranslateButton(messageElement, data.content);
+                messageElement.appendChild(translateBtn);
+            }
         }
     }
 
@@ -532,6 +942,8 @@ function displayMessage(data, type) {
 }
 
 function handleReply(messageWrapper) {
+    if (editingMessageId) cancelEdit();
+
     const messageElement = messageWrapper.querySelector('.message');
     const isImage = messageElement.classList.contains('message-image');
     
@@ -547,7 +959,7 @@ function handleReply(messageWrapper) {
     
     const messageData = {
         messageId: messageWrapper.dataset.messageId,
-        clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'other-user',
+        clientId: messageWrapper.classList.contains('my-message-wrapper') ? clientId : 'Пользователь',
         type: isImage && replyContent === 'Изображение' ? 'image' : 'text',
         content: replyContent
     };
@@ -569,12 +981,12 @@ async function handleCopy(messageWrapper, copyBtn) {
             ]);
             showCopyFeedback(copyBtn, 'Скопировано');
         } else {
-            const text = messageElement.textContent.trim();
+            const text = messageElement.textContent.replace(' (ред.)', '').replace('перевести', '').trim();
             await navigator.clipboard.writeText(text);
             showCopyFeedback(copyBtn, 'Скопировано');
         }
     } catch (err) {
-        console.error('Ошибка копирования:', err);
+        console.error(err);
         showCopyFeedback(copyBtn, 'Ошибка');
     }
 }
@@ -592,7 +1004,7 @@ function showCopyFeedback(button, message) {
 
 messagesContainer.addEventListener('contextmenu', (event) => {
     const messageWrapper = event.target.closest('.message-wrapper');
-    if (messageWrapper) {
+    if (messageWrapper && !messageWrapper.classList.contains('system-message-wrapper')) {
         event.preventDefault();
         showEmojiPicker(event, messageWrapper);
     }
@@ -600,7 +1012,7 @@ messagesContainer.addEventListener('contextmenu', (event) => {
 
 messagesContainer.addEventListener('dblclick', (event) => {
     const messageWrapper = event.target.closest('.message-wrapper');
-    if (messageWrapper && !event.target.closest('img, a, button, .reactions-container')) {
+    if (messageWrapper && !messageWrapper.classList.contains('system-message-wrapper') && !event.target.closest('img, a, button, .reactions-container')) {
         handleReply(messageWrapper);
     }
 });
@@ -612,41 +1024,13 @@ function toggleSendButton() {
         const hasText = messageInput.value.trim() !== '';
         const hasImages = stagedFiles.length > 0;
         sendButton.style.display = (hasText || hasImages) ? 'flex' : 'none';
-    }, 50);
-}
-
-socket.onmessage = (event) => {
-    try {
-        const data = JSON.parse(event.data);
-        if (data.clientId === clientId) return;
-
-        if (data.type === 'reaction') {
-            handleReactionFromServer(data);
+        
+        if (editingMessageId) {
+            sendButton.innerHTML = '<i class="fa-solid fa-check"></i>';
         } else {
-            displayMessage(data, 'friend-message');
+            sendButton.innerHTML = '<i class="fa-regular fa-paper-plane"></i>';
         }
-    } catch (error) {
-        console.error('Ошибка парсинга JSON:', error);
-    }
-};
-
-socket.onclose = () => {
-    displayMessage({ type: 'info', content: 'Вы были отключены от чата.' }, 'friend-message');
-};
-
-socket.onerror = (error) => {
-    console.error('Ошибка WebSocket:', error);
-};
-
-function addImageToStage(imageBase64) {
-    const id = Date.now() + Math.random().toString(36).substr(2, 9);
-    stagedFiles.push({
-        id: id,
-        content: imageBase64,
-        isSpoiler: false
-    });
-    renderPreview();
-    toggleSendButton();
+    }, 50);
 }
 
 function renderPreview() {
@@ -673,7 +1057,6 @@ function renderPreview() {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-preview-btn';
         removeBtn.innerHTML = '&times;';
-        removeBtn.title = 'Удалить';
         removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             stagedFiles.splice(index, 1);
@@ -732,6 +1115,7 @@ function handlePreviewContextMenu(e, index) {
 let dragStartIndex;
 
 function handleDragStart(e) {
+    isInternalDrag = true;
     dragStartIndex = +this.dataset.index;
     this.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -744,13 +1128,18 @@ function handleDragOver(e) {
 
 function handleDrop(e) {
     e.preventDefault();
+    e.stopPropagation();
     const dragEndIndex = +this.dataset.index;
-    swapItems(dragStartIndex, dragEndIndex);
+    if (dragStartIndex !== dragEndIndex) {
+        swapItems(dragStartIndex, dragEndIndex);
+    }
     this.classList.remove('dragging');
+    isInternalDrag = false;
 }
 
 function handleDragEnd() {
     this.classList.remove('dragging');
+    isInternalDrag = false;
     renderPreview();
 }
 
@@ -768,14 +1157,32 @@ function clearStagedFiles() {
 }
 
 function sendMessage() {
+    const messageText = messageInput.value.trim();
+
+    if (editingMessageId) {
+        if (messageText !== '') {
+            const editData = {
+                type: 'edit',
+                clientId: clientId,
+                messageId: editingMessageId,
+                content: messageText
+            };
+            socket.send(JSON.stringify(editData));
+            updateMessageContent(editingMessageId, messageText);
+            
+            updateRepliesOnEdit(editingMessageId, messageText);
+            
+            cancelEdit();
+        }
+        return;
+    }
+
     const messageId = `${clientId}-${messageCounter++}`;
     let messageData = {
         clientId: clientId,
         messageId: messageId,
         replyTo: replyToMessage || null
     };
-
-    const messageText = messageInput.value.trim();
 
     if (stagedFiles.length > 0) {
         messageData = {
@@ -813,13 +1220,17 @@ messageInput.addEventListener('input', toggleSendButton);
 
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
-        if (document.activeElement === messageInput || stagedFiles.length > 0 || replyToMessage) {
+        if (document.activeElement === messageInput || stagedFiles.length > 0 || replyToMessage || editingMessageId) {
             event.preventDefault();
             sendMessage();
         }
     } else if (event.key === 'Escape') {
         if (modal.style.display === 'flex') {
             closeModal();
+        } else if (deleteModal.style.display === 'flex') {
+            closeDeleteModal();
+        } else if (editingMessageId) {
+            cancelEdit();
         } else if (replyToMessage) {
             cancelReply();
         }
@@ -832,20 +1243,42 @@ document.addEventListener('keydown', (event) => {
     }
 });
 
-messageInput.addEventListener('paste', (event) => {
+messageInput.addEventListener('paste', async (event) => {
     const items = Array.from(event.clipboardData.items);
-    
-    items.forEach(item => {
+    for (const item of items) {
         if (item.type.startsWith('image/')) {
             event.preventDefault();
             const file = item.getAsFile();
             if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => addImageToStage(e.target.result);
-                reader.readAsDataURL(file);
+                await addFileToStage(file);
             }
         }
-    });
+    }
+});
+
+inputArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!isInternalDrag) {
+        inputArea.classList.add('drag-over');
+    }
+});
+
+inputArea.addEventListener('dragleave', () => {
+    inputArea.classList.remove('drag-over');
+});
+
+inputArea.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    inputArea.classList.remove('drag-over');
+
+    if (isInternalDrag) return;
+
+    const files = Array.from(e.dataTransfer.files);
+    for (const file of files) {
+        if (file.type.startsWith('image/')) {
+            await addFileToStage(file);
+        }
+    }
 });
 
 let currentScale = 1;
@@ -1064,12 +1497,14 @@ document.addEventListener('click', (event) => {
         '.reactions-container',
         '#preview-context-menu',
         '.context-menu',
-        '.modal-nav'
+        '.modal-nav',
+        '#delete-modal',
+        '.auth-content'
     ];
 
     const isInteractive = interactiveSelectors.some(selector => event.target.closest(selector));
 
-    if (!isInteractive) {
+    if (!isInteractive && authModal.style.display === 'none') {
         focusMessageInput();
     }
 });
