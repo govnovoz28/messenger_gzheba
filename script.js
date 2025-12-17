@@ -22,6 +22,19 @@ const replyImageIndicator = replyPreview.querySelector('.reply-image-indicator')
 
 const headerUsername = document.getElementById('header-username');
 const headerStatus = document.getElementById('header-status');
+const partnerAvatar = document.getElementById('partner-avatar');
+
+const sidebar = document.getElementById('sidebar');
+const menuBtn = document.getElementById('menu-btn');
+const openProfileBtn = document.getElementById('open-profile-btn');
+const profileModal = document.getElementById('profile-modal');
+const profileCloseBtn = document.querySelector('.profile-close');
+const saveProfileBtn = document.getElementById('save-profile-btn');
+const profileUsernameInput = document.getElementById('profile-username-input');
+const profileAvatarInput = document.getElementById('profile-avatar-input');
+const profileAvatarPreview = document.getElementById('profile-avatar-preview');
+const profileAvatarPlaceholder = document.getElementById('profile-avatar-placeholder');
+const myMiniAvatar = document.getElementById('my-mini-avatar');
 
 const modal = document.getElementById('image-modal');
 const modalImg = document.getElementById('modal-image');
@@ -57,8 +70,9 @@ document.body.appendChild(deleteModal);
 
 let socket = null;
 let clientId = null;
+let clientAvatar = null;
 let isLoginMode = true;
-const onlineUsers = new Set();
+const onlineUsers = new Map(); 
 
 const IMG_MAX_WIDTH = 1920;
 const IMG_MAX_HEIGHT = 1920;
@@ -84,9 +98,96 @@ const decryptionCache = new Map();
 
 const savedToken = localStorage.getItem('chat_token');
 const savedUsername = localStorage.getItem('chat_username');
+const savedAvatar = localStorage.getItem('chat_avatar');
 
 if (savedToken && savedUsername) {
-    connectWebSocket(savedToken, savedUsername);
+    connectWebSocket(savedToken, savedUsername, savedAvatar);
+}
+
+menuBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('expanded');
+});
+
+openProfileBtn.addEventListener('click', () => {
+    profileModal.style.display = 'flex';
+    profileUsernameInput.value = clientId;
+    if (clientAvatar) {
+        profileAvatarPreview.src = clientAvatar;
+        profileAvatarPreview.classList.remove('hidden');
+        profileAvatarPlaceholder.classList.add('hidden');
+    } else {
+        profileAvatarPreview.src = '';
+        profileAvatarPreview.classList.add('hidden');
+        profileAvatarPlaceholder.classList.remove('hidden');
+    }
+});
+
+profileCloseBtn.addEventListener('click', () => {
+    profileModal.style.display = 'none';
+});
+
+profileAvatarInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const compressed = await processAndCompressImage(file);
+        profileAvatarPreview.src = compressed;
+        profileAvatarPreview.classList.remove('hidden');
+        profileAvatarPlaceholder.classList.add('hidden');
+    }
+});
+
+saveProfileBtn.addEventListener('click', async () => {
+    const newUsername = profileUsernameInput.value.trim();
+    const newAvatar = profileAvatarPreview.classList.contains('hidden') ? null : profileAvatarPreview.src;
+    
+    if (!newUsername) return;
+
+    try {
+        const token = localStorage.getItem('chat_token');
+        const response = await fetch('/api/update_profile', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ newUsername, newAvatar })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            clientId = data.username;
+            clientAvatar = data.avatar;
+            localStorage.setItem('chat_token', data.token);
+            localStorage.setItem('chat_username', data.username);
+            if(data.avatar) localStorage.setItem('chat_avatar', data.avatar);
+            else localStorage.removeItem('chat_avatar');
+
+            updateMyAvatarUI();
+            
+            socket.send(JSON.stringify({
+                type: 'profile_update',
+                username: clientId,
+                avatar: clientAvatar
+            }));
+
+            profileModal.style.display = 'none';
+        } else {
+            alert(data.error);
+        }
+
+    } catch (e) {
+        console.error(e);
+        alert("Ошибка сохранения профиля");
+    }
+});
+
+function updateMyAvatarUI() {
+    if (clientAvatar) {
+        myMiniAvatar.innerHTML = `<img src="${clientAvatar}">`;
+    } else {
+        myMiniAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
+    }
 }
 
 authToggleLink.addEventListener('click', (e) => {
@@ -120,8 +221,10 @@ authForm.addEventListener('submit', async (e) => {
 
         localStorage.setItem('chat_token', data.token);
         localStorage.setItem('chat_username', data.username);
+        if (data.avatar) localStorage.setItem('chat_avatar', data.avatar);
+        else localStorage.removeItem('chat_avatar');
         
-        connectWebSocket(data.token, data.username);
+        connectWebSocket(data.token, data.username, data.avatar);
         usernameInput.value = '';
         passwordInput.value = '';
 
@@ -132,22 +235,36 @@ authForm.addEventListener('submit', async (e) => {
 });
 
 function updateHeaderUI() {
-    const partnerName = Array.from(onlineUsers).find(u => u !== clientId);
+    let partner = null;
+    for (let [name, data] of onlineUsers) {
+        if (name !== clientId) {
+            partner = data;
+            break;
+        }
+    }
 
-    if (partnerName) {
-        headerUsername.textContent = partnerName;
+    if (partner) {
+        headerUsername.textContent = partner.username;
         headerStatus.textContent = 'в сети';
         headerStatus.style.color = '#4cd137';
+        if (partner.avatar) {
+            partnerAvatar.innerHTML = `<img src="${partner.avatar}">`;
+        } else {
+            partnerAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
+        }
     } else {
         headerUsername.textContent = 'Ожидание собеседника...';
         headerStatus.textContent = 'не в сети';
         headerStatus.style.color = '#888';
+        partnerAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
     }
 }
 
-function connectWebSocket(token, username) {
+function connectWebSocket(token, username, avatar) {
     authModal.style.display = 'none';
     clientId = username;
+    clientAvatar = avatar || null;
+    updateMyAvatarUI();
     updateHeaderUI();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -160,7 +277,7 @@ function connectWebSocket(token, username) {
             
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
-                    onlineUsers.add(data.username);
+                    onlineUsers.set(data.username, { username: data.username, avatar: data.avatar });
                 } else {
                     onlineUsers.delete(data.username);
                 }
@@ -1530,7 +1647,10 @@ document.addEventListener('click', (event) => {
         '.context-menu',
         '.modal-nav',
         '#delete-modal',
-        '.auth-content'
+        '.auth-content',
+        '.profile-content',
+        '#side-menu',
+        '#menu-btn'
     ];
 
     const isInteractive = interactiveSelectors.some(selector => event.target.closest(selector));
