@@ -1392,7 +1392,13 @@ function handlePreviewContextMenu(e, index) {
 
     const file = stagedFiles[index];
     const hideButton = document.createElement('button');
-    hideButton.textContent = file.isSpoiler ? 'Показать' : 'Спрятать под спойлер';
+    
+    if (file.isSpoiler) {
+        hideButton.innerHTML = '<i class="fa-solid fa-eye"></i> Показать';
+    } else {
+        hideButton.innerHTML = '<i class="fa-solid fa-eye-slash"></i> Спрятать';
+    }
+
     hideButton.addEventListener('click', () => {
         file.isSpoiler = !file.isSpoiler;
         renderPreview();
