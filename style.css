@@ -21,6 +21,33 @@ body.modal-open {
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+#chat-header {
+    padding: 12px 20px;
+    border-bottom: 1px solid #444;
+    background-color: #333;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 10;
+}
+
+.header-title {
+    font-weight: bold;
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 2px;
+}
+
+.header-status {
+    color: #aaa;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 600px;
 }
 
 #messages {
@@ -948,32 +975,10 @@ body.modal-open {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-::-webkit-scrollbar {
-    width: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: #2b2b2b;
-}
-
-::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: #666;
-}
-
-* {
-    scrollbar-width: thin;
-    scrollbar-color: #555 #2b2b2b;
-}
-
 /* Auth Modal */
 .auth-modal {
     position: fixed;
-    z-index: 3000; /* Выше всего */
+    z-index: 3000;
     left: 0;
     top: 0;
     width: 100%;
@@ -1036,4 +1041,26 @@ body.modal-open {
     color: #fff;
     text-decoration: underline;
     cursor: pointer;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2b2b2b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #555 #2b2b2b;
 }
