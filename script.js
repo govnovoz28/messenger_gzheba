@@ -300,8 +300,6 @@ async function handleFileSelect(e) {
 }
 
 function connectWebSocket(token, username, avatar) {
-    authModal.style.display = 'none';
-    mainWrapper.style.display = 'flex';
     clientId = username;
     clientAvatar = avatar || null;
     updateHeaderUI();
@@ -309,6 +307,12 @@ function connectWebSocket(token, username, avatar) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     socket = new WebSocket(`${protocol}//${host}?token=${token}`);
+
+    socket.onopen = () => {
+        authModal.style.display = 'none';
+        mainWrapper.style.display = 'flex';
+        authError.style.display = 'none';
+    };
 
     socket.onmessage = (event) => {
         try {
