@@ -20,6 +20,8 @@ const replyAuthorSpan = replyPreview.querySelector('.reply-author');
 const replyTextDiv = replyPreview.querySelector('.reply-text');
 const replyImageIndicator = replyPreview.querySelector('.reply-image-indicator');
 
+const headerStatus = document.getElementById('header-status');
+
 const modal = document.getElementById('image-modal');
 const modalImg = document.getElementById('modal-image');
 const closeModalBtn = document.querySelector('.modal-close');
@@ -55,6 +57,7 @@ document.body.appendChild(deleteModal);
 let socket = null;
 let clientId = null;
 let isLoginMode = true;
+const onlineUsers = new Set();
 
 const IMG_MAX_WIDTH = 1920;
 const IMG_MAX_HEIGHT = 1920;
@@ -127,13 +130,24 @@ authForm.addEventListener('submit', async (e) => {
     }
 });
 
+function updateHeaderStatus() {
+    if (onlineUsers.size === 0) {
+        headerStatus.textContent = `Вы: ${clientId}`;
+    } else {
+        const others = Array.from(onlineUsers).filter(u => u !== clientId);
+        if (others.length === 0) {
+            headerStatus.textContent = `Вы: ${clientId}`;
+        } else {
+            headerStatus.textContent = `В сети: ${others.join(', ')}`;
+        }
+    }
+}
+
 function connectWebSocket(token, username) {
     authModal.style.display = 'none';
     clientId = username;
+    updateHeaderStatus();
 
-    // Вот эта часть автоматически определяет адрес:
-    // Если на Render (https), то будет wss://messenger-gzheba.onrender.com
-    // Если локально (http), то будет ws://localhost:8080
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     socket = new WebSocket(`${protocol}//${host}?token=${token}`);
@@ -142,6 +156,16 @@ function connectWebSocket(token, username) {
         try {
             const data = JSON.parse(event.data);
             
+            if (data.type === 'partner_status') {
+                if (data.status === 'online') {
+                    onlineUsers.add(data.username);
+                } else {
+                    onlineUsers.delete(data.username);
+                }
+                updateHeaderStatus();
+                return;
+            }
+
             if (data.username === clientId && data.type !== 'edit' && data.type !== 'delete') return;
 
             if (data.type === 'reaction') {
@@ -167,6 +191,8 @@ function connectWebSocket(token, username) {
         authModal.style.display = 'flex';
         authError.textContent = "Соединение разорвано";
         authError.style.display = 'block';
+        onlineUsers.clear();
+        headerStatus.textContent = 'Отключено';
     };
 
     socket.onerror = (error) => {
