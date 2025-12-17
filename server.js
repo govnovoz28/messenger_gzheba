@@ -9,7 +9,7 @@ const cors = require('cors');
 
 // --- НАСТРОЙКИ ---
 const PORT = process.env.PORT || 8080;
-const SECRET_KEY = 'YOUR_SUPER_SECRET_KEY_CHANGE_THIS'; // Поменяй на сложный ключ
+const SECRET_KEY = 'YOUR_SUPER_SECRET_KEY_CHANGE_THIS'; // Можешь поменять на свой
 const DB_SOURCE = "users.db";
 
 // --- ИНИЦИАЛИЗАЦИЯ БД SQLITE ---
@@ -19,7 +19,6 @@ const db = new sqlite3.Database(DB_SOURCE, (err) => {
         throw err;
     } else {
         console.log('Подключено к базе данных SQLite.');
-        // Создаем таблицу пользователей, если её нет
         db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
@@ -30,9 +29,12 @@ const db = new sqlite3.Database(DB_SOURCE, (err) => {
 
 // --- НАСТРОЙКА EXPRESS (HTTP) ---
 const app = express();
-app.use(express.json()); // Чтобы парсить JSON в POST запросах
+app.use(express.json());
 app.use(cors());
-app.use(express.static(path.join(__dirname))); // Раздаем статику (html, css, js)
+
+// ВАЖНО: Раздаем статические файлы (index.html, style.css, script.js)
+// Именно эта строчка убирает ошибку "Upgrade Required"
+app.use(express.static(path.join(__dirname)));
 
 // Маршрут регистрации
 app.post('/api/register', (req, res) => {
@@ -48,7 +50,6 @@ app.post('/api/register', (req, res) => {
         if (err) {
             return res.status(400).json({ error: "Пользователь с таким именем уже существует" });
         }
-        // Сразу создаем токен после регистрации
         const token = jwt.sign({ id: this.lastID, username: username }, SECRET_KEY, { expiresIn: '24h' });
         res.json({ message: "Успешная регистрация", token, username });
     });
@@ -71,13 +72,12 @@ app.post('/api/login', (req, res) => {
     });
 });
 
-// --- ЗАПУСК СЕРВЕРА ---
+// --- ЗАПУСК СЕРВЕРА (HTTP + WS ВМЕСТЕ) ---
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const clients = new Map(); // Map: ws -> userData
+const clients = new Map();
 
-// Функция рассылки
 function broadcast(data, senderWs) {
     const messageStr = JSON.stringify(data);
     for (const [clientWs, userData] of clients.entries()) {
@@ -98,7 +98,6 @@ function broadcastUserStatus(username, status) {
 }
 
 wss.on('connection', (ws, req) => {
-    // Получаем токен из URL (ws://url?token=...)
     const url = new URL(req.url, `http://${req.headers.host}`);
     const token = url.searchParams.get('token');
 
@@ -107,27 +106,19 @@ wss.on('connection', (ws, req) => {
         return;
     }
 
-    // Проверяем токен
     jwt.verify(token, SECRET_KEY, (err, decoded) => {
         if (err) {
             ws.close();
             return;
         }
 
-        console.log(`Подключился: ${decoded.username}`);
-        
-        // Сохраняем данные пользователя в ws объект и в Map
         ws.userData = decoded;
         clients.set(ws, decoded);
-
         ws.isAlive = true;
         ws.on('pong', () => ws.isAlive = true);
 
-        // Уведомляем других, что пользователь онлайн
         broadcastUserStatus(decoded.username, 'online');
 
-        // Отправляем текущему юзеру список тех, кто уже онлайн (упрощенно)
-        // В реальном проекте тут лучше отправлять список, а не спамить статусами
         clients.forEach((uData, clientWs) => {
             if (clientWs !== ws) {
                 ws.send(JSON.stringify({ type: 'partner_status', username: uData.username, status: 'online' }));
@@ -137,33 +128,24 @@ wss.on('connection', (ws, req) => {
         ws.on('message', (message) => {
             try {
                 const parsed = JSON.parse(message);
-                
-                // Принудительно ставим clientId и username из токена, чтобы их нельзя было подделать с фронта
                 parsed.clientId = ws.userData.id.toString(); 
                 parsed.username = ws.userData.username;
 
-                // Обработка реакций (упрощенная для примера)
-                if (parsed.type === 'reaction') {
-                    // Пересылаем всем (включая логику удаления/добавления, которую ты уже писал)
-                    // Тут можно добавить логику сохранения в БД SQLite реакций
-                    broadcast(parsed, ws);
-                } else {
-                    broadcast(parsed, ws);
-                }
+                broadcast(parsed, ws);
             } catch (e) {
                 console.error(e);
             }
         });
 
         ws.on('close', () => {
-            console.log(`Отключился: ${ws.userData.username}`);
-            broadcastUserStatus(ws.userData.username, 'offline');
+            if (ws.userData) {
+                broadcastUserStatus(ws.userData.username, 'offline');
+            }
             clients.delete(ws);
         });
     });
 });
 
-// Heartbeat
 setInterval(() => {
     wss.clients.forEach(ws => {
         if (ws.isAlive === false) return ws.terminate();
@@ -173,5 +155,5 @@ setInterval(() => {
 }, 30000);
 
 server.listen(PORT, () => {
-    console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
 });
