@@ -20,6 +20,7 @@ const replyAuthorSpan = replyPreview.querySelector('.reply-author');
 const replyTextDiv = replyPreview.querySelector('.reply-text');
 const replyImageIndicator = replyPreview.querySelector('.reply-image-indicator');
 
+const headerUsername = document.getElementById('header-username');
 const headerStatus = document.getElementById('header-status');
 
 const modal = document.getElementById('image-modal');
@@ -130,23 +131,24 @@ authForm.addEventListener('submit', async (e) => {
     }
 });
 
-function updateHeaderStatus() {
-    if (onlineUsers.size === 0) {
-        headerStatus.textContent = `Вы: ${clientId}`;
+function updateHeaderUI() {
+    const partnerName = Array.from(onlineUsers).find(u => u !== clientId);
+
+    if (partnerName) {
+        headerUsername.textContent = partnerName;
+        headerStatus.textContent = 'в сети';
+        headerStatus.style.color = '#4cd137';
     } else {
-        const others = Array.from(onlineUsers).filter(u => u !== clientId);
-        if (others.length === 0) {
-            headerStatus.textContent = `Вы: ${clientId}`;
-        } else {
-            headerStatus.textContent = `В сети: ${others.join(', ')}`;
-        }
+        headerUsername.textContent = 'Ожидание собеседника...';
+        headerStatus.textContent = 'не в сети';
+        headerStatus.style.color = '#888';
     }
 }
 
 function connectWebSocket(token, username) {
     authModal.style.display = 'none';
     clientId = username;
-    updateHeaderStatus();
+    updateHeaderUI();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
@@ -162,7 +164,7 @@ function connectWebSocket(token, username) {
                 } else {
                     onlineUsers.delete(data.username);
                 }
-                updateHeaderStatus();
+                updateHeaderUI();
                 return;
             }
 
@@ -192,7 +194,7 @@ function connectWebSocket(token, username) {
         authError.textContent = "Соединение разорвано";
         authError.style.display = 'block';
         onlineUsers.clear();
-        headerStatus.textContent = 'Отключено';
+        updateHeaderUI();
     };
 
     socket.onerror = (error) => {
