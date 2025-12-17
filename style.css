@@ -24,7 +24,7 @@ body.modal-open {
 }
 
 #sidebar {
-    width: 110px;
+    width: 70px;
     background-color: #222;
     border-right: 1px solid #444;
     display: flex;
@@ -36,7 +36,7 @@ body.modal-open {
 }
 
 #sidebar.expanded {
-    width: 180px;
+    width: 260px;
     align-items: flex-start;
 }
 
