@@ -108,7 +108,12 @@ const savedUsername = localStorage.getItem('chat_username');
 const savedAvatar = localStorage.getItem('chat_avatar');
 
 if (savedToken && savedUsername) {
+    authModal.style.display = 'none';
+    mainWrapper.style.display = 'flex';
     connectWebSocket(savedToken, savedUsername, savedAvatar);
+} else {
+    authModal.style.display = 'flex';
+    mainWrapper.style.display = 'none';
 }
 
 menuBtn.addEventListener('click', (e) => {
@@ -232,6 +237,8 @@ authForm.addEventListener('submit', async (e) => {
         if (data.avatar) localStorage.setItem('chat_avatar', data.avatar);
         else localStorage.removeItem('chat_avatar');
         
+        authModal.style.display = 'none';
+        mainWrapper.style.display = 'flex';
         connectWebSocket(data.token, data.username, data.avatar);
         usernameInput.value = '';
         passwordInput.value = '';
@@ -261,7 +268,7 @@ function updateHeaderUI() {
             partnerAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
         }
     } else {
-        headerUsername.textContent = 'Ожидание собеседника...';
+        headerUsername.textContent = 'Ожидание пользователя...';
         headerStatus.textContent = 'не в сети';
         headerStatus.style.color = '#888';
         partnerAvatar.innerHTML = `<i class="fa-solid fa-user"></i>`;
@@ -309,7 +316,6 @@ function connectWebSocket(token, username, avatar) {
     socket = new WebSocket(`${protocol}//${host}?token=${token}`);
 
     socket.onopen = () => {
-        // Мы НЕ показываем чат здесь, ждем первого сообщения
         authError.style.display = 'none';
     };
 
@@ -317,12 +323,6 @@ function connectWebSocket(token, username, avatar) {
         try {
             const data = JSON.parse(event.data);
             
-            // Если пришло любое сообщение от сервера, значит токен валиден и мы вошли
-            if (authModal.style.display !== 'none') {
-                authModal.style.display = 'none';
-                mainWrapper.style.display = 'flex';
-            }
-
             if (data.type === 'partner_status') {
                 if (data.status === 'online') {
                     onlineUsers.set(data.username, { username: data.username, avatar: data.avatar });
@@ -355,7 +355,6 @@ function connectWebSocket(token, username, avatar) {
     };
 
     socket.onclose = () => {
-        // При разрыве скрываем чат и показываем вход
         authModal.style.display = 'flex';
         mainWrapper.style.display = 'none';
         authError.textContent = "Соединение разорвано";
