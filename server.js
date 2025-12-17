@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
@@ -8,46 +10,51 @@ const path = require('path');
 const cors = require('cors');
 
 const PORT = process.env.PORT || 8080;
-const SECRET_KEY = 'YOUR_SUPER_SECRET_KEY_CHANGE_THIS'; 
+const SECRET_KEY = process.env.JWT_SECRET || 'dev_secret_key_change_me'; 
 const DB_SOURCE = "users.db";
-
-const db = new sqlite3.Database(DB_SOURCE, (err) => {
-    if (err) {
-        console.error(err.message);
-        throw err;
-    } else {
-        console.log('Подключено к базе данных SQLite.');
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            avatar TEXT
-        )`);
-    }
-});
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 app.use(express.static(path.join(__dirname)));
 
-app.post('/api/register', (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) {
-        return res.status(400).json({ error: "Введите имя и пароль" });
+const db = new sqlite3.Database(DB_SOURCE, (err) => {
+    if (err) {
+        console.error(err.message);
+        throw err;
     }
+    console.log('Подключено к базе данных SQLite.');
+    
+    db.serialize(() => {
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            avatar TEXT
+        )`);
 
-    const hashedPassword = bcrypt.hashSync(password, 8);
-
-    const sql = 'INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)';
-    db.run(sql, [username, hashedPassword, null], function (err) {
-        if (err) {
-            return res.status(400).json({ error: "Пользователь с таким именем уже существует" });
+        if (process.env.USER1_LOGIN && process.env.USER1_PASS) {
+            createSystemUser(process.env.USER1_LOGIN, process.env.USER1_PASS);
         }
-        const token = jwt.sign({ id: this.lastID, username: username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешная регистрация", token, username, id: this.lastID, avatar: null });
+        if (process.env.USER2_LOGIN && process.env.USER2_PASS) {
+            createSystemUser(process.env.USER2_LOGIN, process.env.USER2_PASS);
+        }
     });
 });
+
+function createSystemUser(username, password) {
+    const checkSql = "SELECT id FROM users WHERE username = ?";
+    db.get(checkSql, [username], (err, row) => {
+        if (!row) {
+            const hashedPassword = bcrypt.hashSync(password, 8);
+            const insertSql = "INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)";
+            db.run(insertSql, [username, hashedPassword, null], (err) => {
+                if (err) console.error(`Ошибка создания ${username}:`, err.message);
+                else console.log(`Системный пользователь ${username} создан/восстановлен.`);
+            });
+        }
+    });
+}
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
@@ -80,7 +87,7 @@ app.post('/api/update_profile', (req, res) => {
         
         db.run(sql, [newUsername, newAvatar, user.id], function(err) {
             if (err) {
-                return res.status(400).json({ error: "Ошибка обновления (возможно имя занято)" });
+                return res.status(400).json({ error: "Ошибка обновления" });
             }
             
             const updatedUsername = newUsername || user.username;
