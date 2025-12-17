@@ -7,12 +7,10 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const cors = require('cors');
 
-// --- НАСТРОЙКИ ---
 const PORT = process.env.PORT || 8080;
-const SECRET_KEY = 'YOUR_SUPER_SECRET_KEY_CHANGE_THIS'; // Можешь поменять на свой
+const SECRET_KEY = 'YOUR_SUPER_SECRET_KEY_CHANGE_THIS'; 
 const DB_SOURCE = "users.db";
 
-// --- ИНИЦИАЛИЗАЦИЯ БД SQLITE ---
 const db = new sqlite3.Database(DB_SOURCE, (err) => {
     if (err) {
         console.error(err.message);
@@ -22,21 +20,17 @@ const db = new sqlite3.Database(DB_SOURCE, (err) => {
         db.run(`CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE,
-            password TEXT
+            password TEXT,
+            avatar TEXT
         )`);
     }
 });
 
-// --- НАСТРОЙКА EXPRESS (HTTP) ---
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cors());
-
-// ВАЖНО: Раздаем статические файлы (index.html, style.css, script.js)
-// Именно эта строчка убирает ошибку "Upgrade Required"
 app.use(express.static(path.join(__dirname)));
 
-// Маршрут регистрации
 app.post('/api/register', (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -45,17 +39,16 @@ app.post('/api/register', (req, res) => {
 
     const hashedPassword = bcrypt.hashSync(password, 8);
 
-    const sql = 'INSERT INTO users (username, password) VALUES (?, ?)';
-    db.run(sql, [username, hashedPassword], function (err) {
+    const sql = 'INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)';
+    db.run(sql, [username, hashedPassword, null], function (err) {
         if (err) {
             return res.status(400).json({ error: "Пользователь с таким именем уже существует" });
         }
         const token = jwt.sign({ id: this.lastID, username: username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешная регистрация", token, username });
+        res.json({ message: "Успешная регистрация", token, username, avatar: null });
     });
 });
 
-// Маршрут входа
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     const sql = "SELECT * FROM users WHERE username = ?";
@@ -68,11 +61,41 @@ app.post('/api/login', (req, res) => {
         if (!passwordIsValid) return res.status(401).json({ error: "Неверный пароль" });
 
         const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешный вход", token, username });
+        res.json({ message: "Успешный вход", token, username, avatar: user.avatar });
     });
 });
 
-// --- ЗАПУСК СЕРВЕРА (HTTP + WS ВМЕСТЕ) ---
+app.post('/api/update_profile', (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) return res.status(401).json({ error: 'Нет доступа' });
+
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Токен недействителен' });
+
+        const { newUsername, newAvatar } = req.body;
+        
+        const sql = `UPDATE users SET username = COALESCE(?, username), avatar = COALESCE(?, avatar) WHERE id = ?`;
+        
+        db.run(sql, [newUsername, newAvatar, user.id], function(err) {
+            if (err) {
+                return res.status(400).json({ error: "Ошибка обновления (возможно имя занято)" });
+            }
+            
+            const updatedUsername = newUsername || user.username;
+            const newToken = jwt.sign({ id: user.id, username: updatedUsername }, SECRET_KEY, { expiresIn: '24h' });
+            
+            res.json({ 
+                success: true, 
+                token: newToken, 
+                username: updatedUsername,
+                avatar: newAvatar 
+            });
+        });
+    });
+});
+
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -87,9 +110,15 @@ function broadcast(data, senderWs) {
     }
 }
 
-function broadcastUserStatus(username, status) {
-    const data = { type: 'partner_status', username, status };
+function broadcastUserStatus(userData, status) {
+    const data = { 
+        type: 'partner_status', 
+        username: userData.username, 
+        avatar: userData.avatar,
+        status: status 
+    };
     const messageStr = JSON.stringify(data);
+    
     for (const [clientWs] of clients.entries()) {
         if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(messageStr);
@@ -112,25 +141,48 @@ wss.on('connection', (ws, req) => {
             return;
         }
 
-        ws.userData = decoded;
-        clients.set(ws, decoded);
-        ws.isAlive = true;
-        ws.on('pong', () => ws.isAlive = true);
-
-        broadcastUserStatus(decoded.username, 'online');
-
-        clients.forEach((uData, clientWs) => {
-            if (clientWs !== ws) {
-                ws.send(JSON.stringify({ type: 'partner_status', username: uData.username, status: 'online' }));
+        const sql = "SELECT username, avatar FROM users WHERE id = ?";
+        db.get(sql, [decoded.id], (err, user) => {
+            if (!user) {
+                ws.close();
+                return;
             }
+
+            const fullUserData = { ...decoded, username: user.username, avatar: user.avatar };
+            ws.userData = fullUserData;
+            clients.set(ws, fullUserData);
+            ws.isAlive = true;
+
+            ws.on('pong', () => ws.isAlive = true);
+
+            broadcastUserStatus(fullUserData, 'online');
+
+            clients.forEach((uData, clientWs) => {
+                if (clientWs !== ws) {
+                    ws.send(JSON.stringify({ 
+                        type: 'partner_status', 
+                        username: uData.username, 
+                        avatar: uData.avatar,
+                        status: 'online' 
+                    }));
+                }
+            });
         });
 
         ws.on('message', (message) => {
             try {
                 const parsed = JSON.parse(message);
+                
+                if (parsed.type === 'profile_update') {
+                    ws.userData.username = parsed.username;
+                    ws.userData.avatar = parsed.avatar;
+                    clients.set(ws, ws.userData);
+                    broadcastUserStatus(ws.userData, 'online');
+                    return;
+                }
+
                 parsed.clientId = ws.userData.id.toString(); 
                 parsed.username = ws.userData.username;
-
                 broadcast(parsed, ws);
             } catch (e) {
                 console.error(e);
@@ -139,7 +191,7 @@ wss.on('connection', (ws, req) => {
 
         ws.on('close', () => {
             if (ws.userData) {
-                broadcastUserStatus(ws.userData.username, 'offline');
+                broadcastUserStatus(ws.userData, 'offline');
             }
             clients.delete(ws);
         });
