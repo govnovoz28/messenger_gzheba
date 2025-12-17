@@ -277,7 +277,7 @@ body.modal-open {
 }
 
 .image-grid img:hover {
-    opacity: 0.9;
+    opacity: 1;
 }
 
 .image-grid img.spoiler {
