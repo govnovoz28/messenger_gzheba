@@ -146,6 +146,16 @@ profileCloseBtn.addEventListener('click', () => {
     }, 300);
 });
 
+// Добавлена логика закрытия по клику на фон
+profileModal.addEventListener('click', (event) => {
+    if (event.target === profileModal) {
+        profileModal.classList.remove('modal-visible');
+        setTimeout(() => {
+            profileModal.style.display = 'none';
+        }, 300);
+    }
+});
+
 profileAvatarInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
