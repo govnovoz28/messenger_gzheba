@@ -37,7 +37,7 @@ body.modal-open {
     flex-direction: column;
     position: relative;
     margin-bottom: 8px;
-    max-width: 70%;
+    max-width: 400px; 
 }
 
 .my-message-wrapper {
@@ -198,6 +198,14 @@ body.modal-open {
     border-radius: 8px 8px 8px 0; 
 }
 
+.edited-label {
+    font-size: 0.75em;
+    color: rgba(255, 255, 255, 0.6);
+    margin-left: 5px;
+    font-style: italic;
+    user-select: none;
+}
+
 .translate-btn {
     background: none;
     border: none;
@@ -231,7 +239,7 @@ body.modal-open {
 
 .reply-info {
     background-color: rgba(255, 255, 255, 0.08);
-    border-left: 3px solid #0084ff;
+    border-left: 3px solid #777; 
     padding: 6px 10px;
     margin-bottom: 5px;
     border-radius: 4px;
@@ -240,25 +248,42 @@ body.modal-open {
     max-height: 60px;
     overflow: hidden;
     position: relative;
+    max-width: 100%;
+}
+
+.reply-info.deleted {
+    border-left: 3px solid #555;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.reply-content-deleted {
+    color: #888;
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .reply-info .reply-author {
     font-weight: bold;
-    color: #0084ff;
+    color: #aaa; 
     margin-bottom: 2px;
     display: block;
+}
+
+.reply-info .reply-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .reply-preview .reply-text {
     color: #ddd;
     font-size: 12px;
-    max-height: 40px;
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
 }
 
 .reply-info .reply-image-indicator {
@@ -268,12 +293,27 @@ body.modal-open {
 
 .reply-preview {
     display: none;
-    background-color: rgba(0, 132, 255, 0.1);
-    border-left: 3px solid #0084ff;
+    background-color: rgba(95, 95, 95, 0.2); 
+    border-left: 3px solid #777; 
     padding: 8px 12px;
     margin-bottom: 10px;
     border-radius: 4px;
     position: relative;
+}
+
+.reply-preview.edit-mode {
+    border-left: 3px solid #777; 
+    background-color: rgba(95, 95, 95, 0.2);
+}
+
+.reply-preview .reply-author {
+    font-weight: bold;
+    color: #aaa;
+    font-size: 12px;
+}
+
+.reply-preview.edit-mode .reply-author {
+    color: #aaa;
 }
 
 .reply-preview .reply-header {
@@ -285,7 +325,7 @@ body.modal-open {
 
 .reply-preview .reply-author {
     font-weight: bold;
-    color: #0084ff;
+    color: #aaa; 
     font-size: 12px;
 }
 
@@ -308,18 +348,6 @@ body.modal-open {
 .reply-preview .cancel-reply-btn:hover {
     background-color: rgba(255, 255, 255, 0.1);
     color: #fff;
-}
-
-.reply-preview .reply-text {
-    color: #ddd;
-    font-size: 12px;
-    max-height: 40px;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    text-overflow: ellipsis;
 }
 
 .reply-preview .reply-image-indicator {
@@ -360,14 +388,14 @@ body.modal-open {
 }
 
 .reaction.my-reaction {
-    background-color: rgba(0, 132, 255, 0.3);
-    border: 1px solid rgba(0, 132, 255, 0.5);
+    background-color: rgba(95, 95, 95, 0.4); 
+    border: 1px solid rgba(150, 150, 150, 0.5); 
     color: #fff;
 }
 
 .reaction.my-reaction:hover {
-    background-color: rgba(0, 132, 255, 0.4);
-    border-color: rgba(0, 132, 255, 0.7);
+    background-color: rgba(95, 95, 95, 0.6);
+    border-color: rgba(150, 150, 150, 0.8);
 }
 
 .emoji-in-reaction {
@@ -418,6 +446,12 @@ body.modal-open {
     background-color: #3e3e3e;
     border-radius: 0 0 4px 4px;
     position: relative;
+    transition: background-color 0.2s ease;
+}
+
+#input-area.drag-over {
+    background-color: #4a4a4a;
+    outline: 2px dashed #777; 
 }
 
 #image-preview-container {
@@ -449,7 +483,7 @@ body.modal-open {
 
 .preview-item.dragging {
     opacity: 0.5;
-    border-color: #0084ff;
+    border-color: #999; 
     transform: scale(0.95);
 }
 
@@ -531,7 +565,7 @@ body.modal-open {
     height: 32px;
     border: none;
     background: none;
-    color: #0084ff;
+    color: #777; 
     cursor: pointer;
     font-size: 18px;
     flex-shrink: 0;
@@ -543,7 +577,7 @@ body.modal-open {
 }
 
 #send-button:hover {
-    color: #0073e6;
+    color: #aaa; 
     transform: scale(1.15);
 }
 
@@ -564,7 +598,6 @@ body.modal-open {
     background-color: rgba(0, 0, 0, 0.85);
     justify-content: center;
     align-items: center;
-    
     opacity: 0;
     transition: opacity 0.3s ease;
 }
@@ -646,7 +679,7 @@ body.modal-open {
 #modal-loader {
     display: none;
     border: 5px solid #444;
-    border-top: 5px solid #0084ff;
+    border-top: 5px solid #777; 
     border-radius: 50%;
     width: 50px;
     height: 50px;
@@ -795,6 +828,126 @@ body.modal-open {
     background-color: #3e3e3e;
 }
 
+#delete-modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+#delete-modal.visible {
+    opacity: 1;
+}
+
+.delete-popup {
+    background-color: #2b2b2b;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 18px;
+    width: 250px;
+    height: 100px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transform: scale(0.95);
+    transition: transform 0.2s ease;
+    justify-content: space-between;
+}
+
+#delete-modal.visible .delete-popup {
+    transform: scale(1);
+}
+
+.delete-popup h3 {
+    margin: 0;
+    color: #f1f1f1;
+    font-size: 16px;
+    text-align: left;
+    font-weight: normal;
+}
+
+.delete-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #bbb;
+    font-size: 14px;
+    justify-content: flex-start;
+}
+
+.delete-checkbox-wrapper input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #999;
+}
+
+.delete-checkbox-wrapper input[type="checkbox"]:hover {
+    filter: none;
+    opacity: 1;
+}
+
+.delete-checkbox-wrapper label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.delete-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.delete-buttons-block {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid #444;
+}
+
+.delete-confirm-btn {
+    background-color: transparent;
+    color: #999;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.delete-confirm-btn:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.delete-cancel-btn {
+    background-color: transparent;
+    border: none;
+    color: #999;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.delete-cancel-btn:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -815,4 +968,72 @@ body.modal-open {
 * {
     scrollbar-width: thin;
     scrollbar-color: #555 #2b2b2b;
+}
+
+/* Auth Modal */
+.auth-modal {
+    position: fixed;
+    z-index: 3000; /* Выше всего */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1a1a1a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-content {
+    background-color: #2b2b2b;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    width: 300px;
+    text-align: center;
+    border: 1px solid #444;
+}
+
+.auth-content h2 {
+    color: #f1f1f1;
+    margin-top: 0;
+}
+
+.auth-content input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    background-color: #3e3e3e;
+    border: 1px solid #555;
+    border-radius: 4px;
+    color: white;
+    box-sizing: border-box;
+}
+
+.auth-content button {
+    width: 100%;
+    padding: 10px;
+    background-color: #5f5f5f;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-size: 16px;
+}
+
+.auth-content button:hover {
+    background-color: #777;
+}
+
+.auth-switch {
+    margin-top: 15px;
+    color: #bbb;
+    font-size: 14px;
+}
+
+.auth-switch a {
+    color: #fff;
+    text-decoration: underline;
+    cursor: pointer;
 }
