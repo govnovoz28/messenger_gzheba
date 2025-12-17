@@ -9,23 +9,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-    <!-- Модальное окно авторизации -->
-    <div id="auth-modal" class="auth-modal" style="display: flex;">
-        <div class="auth-content">
-            <h2 id="auth-title">Вход</h2>
-            <form id="auth-form">
-                <input type="text" id="auth-username" placeholder="Логин" required autocomplete="username">
-                <input type="password" id="auth-password" placeholder="Пароль" required autocomplete="current-password">
-                <p id="auth-error" style="color: #ff5555; font-size: 14px; display: none;"></p>
-                <button type="submit" id="auth-submit">Войти</button>
-            </form>
-            <p class="auth-switch">
-                <span id="auth-toggle-text">Нет аккаунта?</span> 
-                <a href="#" id="auth-toggle-link">Зарегистрироваться</a>
-            </p>
-        </div>
-    </div>
     <div id="chat-container">
+        <div id="chat-header">
+            <div class="header-info">
+                <div class="header-title">Общий чат</div>
+                <div id="header-status" class="header-status">Ожидание подключения...</div>
+            </div>
+        </div>
+
         <div id="messages">
         </div>
         <div id="input-area">
@@ -56,6 +47,23 @@
     <div id="image-modal" class="modal">
         <span class="modal-close">&times;</span>
         <img class="modal-content" id="modal-image" alt="Zoomed Image">
+        <div id="modal-loader"></div>
+    </div>
+
+    <div id="auth-modal" class="auth-modal" style="display: flex;">
+        <div class="auth-content">
+            <h2 id="auth-title">Вход</h2>
+            <form id="auth-form">
+                <input type="text" id="auth-username" placeholder="Логин" required autocomplete="username">
+                <input type="password" id="auth-password" placeholder="Пароль" required autocomplete="current-password">
+                <p id="auth-error" style="color: #ff5555; font-size: 14px; display: none;"></p>
+                <button type="submit" id="auth-submit">Войти</button>
+            </form>
+            <p class="auth-switch">
+                <span id="auth-toggle-text">Нет аккаунта?</span> 
+                <a href="#" id="auth-toggle-link">Зарегистрироваться</a>
+            </p>
+        </div>
     </div>
 
     <script src="script.js"></script>
