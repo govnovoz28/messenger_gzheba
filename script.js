@@ -155,22 +155,72 @@ profileModal.addEventListener('click', (event) => {
         }, 300);
     }
 });
+function compressImageSpecific(file, maxWidth, maxHeight, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width *= maxHeight / height;
+                        height = maxHeight;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(dataUrl);
+            };
+            img.onerror = reject;
+            img.src = event.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
 
 profileAvatarInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-        const compressed = await processAndCompressImage(file);
-        profileAvatarPreview.src = compressed;
-        profileAvatarPreview.classList.remove('hidden');
-        profileAvatarPlaceholder.classList.add('hidden');
+        try {
+            const compressed = await compressImageSpecific(file, 300, 300, 0.7);
+            profileAvatarPreview.src = compressed;
+            profileAvatarPreview.classList.remove('hidden');
+            profileAvatarPlaceholder.classList.add('hidden');
+        } catch (err) {
+            alert("Ошибка обработки фото: " + err.message);
+        }
     }
 });
-
 saveProfileBtn.addEventListener('click', async () => {
     const newUsername = profileUsernameInput.value.trim();
-    const newAvatar = profileAvatarPreview.classList.contains('hidden') ? null : profileAvatarPreview.src;
+    const newAvatar = !profileAvatarPreview.classList.contains('hidden') ? profileAvatarPreview.src : null;
     
-    if (!newUsername) return;
+    if (!newUsername) {
+        alert("Имя не может быть пустым");
+        return;
+    }
+
+    const originalText = saveProfileBtn.textContent;
+    saveProfileBtn.textContent = "Сохранение...";
+    saveProfileBtn.disabled = true;
 
     try {
         const token = localStorage.getItem('chat_token');
@@ -183,6 +233,11 @@ saveProfileBtn.addEventListener('click', async () => {
             body: JSON.stringify({ newUsername, newAvatar })
         });
 
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Ошибка сервера. Возможно файл слишком велик.");
+        }
+
         const data = await response.json();
         
         if (data.success) {
@@ -192,26 +247,34 @@ saveProfileBtn.addEventListener('click', async () => {
             
             localStorage.setItem('chat_token', data.token);
             localStorage.setItem('chat_username', data.username);
+            
             if(data.avatar) localStorage.setItem('chat_avatar', data.avatar);
             else localStorage.removeItem('chat_avatar');
             
-            socket.send(JSON.stringify({
-                type: 'profile_update',
-                username: clientId,
-                avatar: clientAvatar
-            }));
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'profile_update',
+                    username: clientId,
+                    avatar: clientAvatar
+                }));
+            }
 
             profileModal.classList.remove('modal-visible');
             setTimeout(() => {
                 profileModal.style.display = 'none';
             }, 300);
+            
+            alert("Профиль сохранен!");
         } else {
-            alert(data.error);
+            alert(data.error || "Ошибка сохранения");
         }
 
     } catch (e) {
         console.error(e);
-        alert("Ошибка сохранения профиля");
+        alert("Ошибка: " + e.message);
+    } finally {
+        saveProfileBtn.textContent = originalText;
+        saveProfileBtn.disabled = false;
     }
 });
 
@@ -1006,17 +1069,12 @@ function createTranslateButton(messageElement, originalText) {
     return translateBtn;
 }
 
-// === МОБИЛЬНАЯ АДАПТАЦИЯ СКРОЛЛА ===
 function scrollToBottom() {
     requestAnimationFrame(() => {
-        // Проверяем ширину экрана
         if (window.innerWidth <= 768) {
-            // На мобильном скроллится вся страница (body/html), а не контейнер
             window.scrollTo(0, document.body.scrollHeight);
-            // На всякий случай скроллим и контейнер, если CSS вдруг поменяется
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         } else {
-            // На ПК скроллится только контейнер сообщений
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
     });
@@ -1869,14 +1927,11 @@ document.addEventListener('click', (event) => {
     if (!isInteractive && authModal.style.display === 'none') {
         focusMessageInput();
     }
-
-    // Закрываем сайдбар при клике вне его на мобильном
     if (window.innerWidth <= 768 && sidebar.classList.contains('expanded')) {
         if (!sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
             sidebar.classList.remove('expanded');
         }
     } else if (sidebar.classList.contains('expanded') && !sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
-        // Для десктопа (старая логика)
         sidebar.classList.remove('expanded');
     }
 });
