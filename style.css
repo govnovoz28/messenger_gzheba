@@ -1,4 +1,4 @@
-/* --- ОСНОВНОЙ КОД (DESKTOP) --- */
+/* --- ОСНОВНОЙ КОД (DESKTOP - БЕЗ ИЗМЕНЕНИЙ) --- */
 body {
     font-family: Arial, sans-serif;
     background-color: #1a1a1a;
@@ -34,7 +34,7 @@ body.modal-open {
     padding-top: 15px;
     position: relative;
     transition: width 0.2s ease;
-    z-index: 50; /* Подняли Z-index для мобильной версии */
+    z-index: 50;
 }
 
 #sidebar.expanded {
@@ -99,7 +99,7 @@ body.modal-open {
     flex-direction: column;
     height: 100%;
     background-color: #2b2b2b;
-    position: relative; /* Для позиционирования */
+    position: relative;
 }
 
 #chat-header {
@@ -1419,14 +1419,13 @@ body.modal-open {
 }
 
 /* =========================================================================
-   МОБИЛЬНАЯ АДАПТАЦИЯ (PHONE / TABLET PORTRAIT)
-   Включается только если ширина экрана меньше 768px
+   МОБИЛЬНАЯ АДАПТАЦИЯ (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 ========================================================================= */
 @media screen and (max-width: 768px) {
     
     /* 1. Основа: убираем центрирование и разворачиваем на весь экран */
     body {
-        height: 100dvh; /* Dynamic Viewport Height для мобильных браузеров */
+        height: 100dvh;
         display: block;
         background-color: #2b2b2b;
     }
@@ -1439,69 +1438,82 @@ body.modal-open {
         border-radius: 0;
         border: none;
         box-shadow: none;
-        display: flex !important; /* Перебиваем display: none из JS/HTML при загрузке */
+        display: flex !important;
         flex-direction: column;
     }
 
     /* 2. Сайдбар (выезжающее меню) */
     #sidebar {
-        position: fixed; /* Поверх всего */
+        position: fixed;
         left: 0;
         top: 0;
         bottom: 0;
         height: 100%;
-        width: 0;
+        width: 0; /* Меню скрыто */
         padding: 0;
-        overflow: hidden;
+        /* ВАЖНО: Разрешаем отображение элементов вне границ (для кнопки меню) */
+        overflow: visible; 
         border-right: none;
-        background-color: rgba(34, 34, 34, 0.98);
-        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-        z-index: 2000; /* Очень высоко */
+        background-color: transparent; /* Сначала прозрачный фон, чтобы не перекрывать чат */
+        box-shadow: none;
+        z-index: 2000;
+        transition: width 0.3s ease, background-color 0.3s ease;
     }
 
+    /* Когда меню открыто */
     #sidebar.expanded {
-        width: 80%; /* Не на весь экран, чтобы можно было кликнуть мимо */
+        width: 80%;
         max-width: 300px;
+        background-color: rgba(34, 34, 34, 0.98); /* Появляется фон */
+        box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    }
+    
+    /* Скрываем содержимое меню пока сайдбар не развернут */
+    #side-menu {
+        display: none; 
+    }
+    #sidebar.expanded #side-menu {
+        display: flex;
     }
 
-    /* Кнопка меню должна быть всегда доступна, поэтому выносим её визуально */
+    /* --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ДЛЯ КНОПКИ МЕНЮ --- */
     #menu-btn {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 50px;
-        height: 50px;
-        z-index: 2001; /* Поверх закрытого сайдбара */
+        position: fixed; /* Фиксируем на экране, вне зависимости от ширины родителя */
+        top: 6px;
+        left: 5px;
+        width: 44px;
+        height: 44px;
+        z-index: 3000; /* Поверх всего */
         text-align: center;
         padding: 0;
         display: flex;
         align-items: center;
         justify-content: center;
         background: transparent;
+        color: #fff; /* Белый цвет иконки */
     }
     
-    /* Если сайдбар открыт, кнопка остается внутри него */
+    /* Если меню открыто, кнопка "ложится" внутрь дизайна меню */
     #sidebar.expanded #menu-btn {
-        position: static;
+        position: static; /* Возвращаем в поток */
         width: 100%;
         height: auto;
-        padding: 10px;
+        padding: 15px 20px;
         text-align: left;
-        padding-left: 20px;
         background: none;
+        justify-content: flex-start;
     }
 
-    /* Сдвигаем хедер чата, чтобы кнопка меню не перекрывала аватар и текст */
+    /* Сдвигаем хедер чата вправо, чтобы не наезжал на кнопку меню */
     #chat-header {
         padding-left: 55px; 
     }
 
     /* 3. Сообщения */
     .message-wrapper {
-        max-width: 88%; /* Немного шире на телефоне */
+        max-width: 88%;
     }
 
-    /* Сетка картинок на всю ширину */
     .image-grid:not([data-count="1"]) {
         width: 100%;
         height: auto;
@@ -1515,14 +1527,12 @@ body.modal-open {
         border-top: 1px solid #444;
     }
 
-    /* Важный фикс для iPhone: шрифт 16px предотвращает авто-зум при фокусе */
     #message-input {
         font-size: 16px; 
         height: 40px;
         padding-left: 15px;
     }
     
-    /* Увеличиваем кнопки для удобства нажатия пальцем */
     #attach-btn, #send-button {
         width: 40px;
         height: 40px;
@@ -1533,25 +1543,22 @@ body.modal-open {
         right: 5px;
     }
     
-    /* Меню вложений чуть выше */
     .attach-menu {
         bottom: 50px; 
     }
 
-    /* 5. Всплывающие меню (Context Menu & Emoji Picker) 
-       На телефоне делаем их модальными окнами по центру экрана */
-    
+    /* 5. Всплывающие меню по центру */
     .context-menu, 
     .emoji-picker,
     #preview-context-menu {
-        position: fixed !important; /* Игнорируем координаты JS */
+        position: fixed !important;
         top: 50% !important;
         left: 50% !important;
         transform: translate(-50%, -50%) !important;
         width: 85% !important;
         max-width: 320px;
         z-index: 3000 !important;
-        box-shadow: 0 0 0 1000px rgba(0,0,0,0.6) !important; /* Затемнение фона */
+        box-shadow: 0 0 0 1000px rgba(0,0,0,0.6) !important;
     }
 
     .emoji-picker {
@@ -1568,17 +1575,16 @@ body.modal-open {
     }
     
     .emoji-picker .emoji {
-        font-size: 24px; /* Эмодзи крупнее */
+        font-size: 24px;
         padding: 5px;
     }
 
-    /* Кнопки контекстного меню крупнее */
     .context-btn {
         padding: 15px;
         font-size: 16px;
     }
 
-    /* 6. Модальные окна (Профиль, Вход, Картинка) */
+    /* 6. Модальные окна */
     .modal-close {
         top: 15px;
         right: 15px;
