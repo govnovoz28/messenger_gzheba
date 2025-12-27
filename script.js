@@ -123,6 +123,7 @@ menuBtn.addEventListener('click', (e) => {
 });
 
 openProfileBtn.addEventListener('click', () => {
+    sidebar.classList.remove('expanded');
     profileModal.style.display = 'flex';
     setTimeout(() => {
         profileModal.classList.add('modal-visible');
@@ -1994,3 +1995,4 @@ document.addEventListener('click', (event) => {
         sidebar.classList.remove('expanded');
     }
 });
+
