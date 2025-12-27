@@ -1560,9 +1560,8 @@ body.modal-open {
         bottom: 50px; 
     }
 
-/* 5. Всплывающие меню по центру (ИСПРАВЛЕНО) */
+/* 5. Всплывающие меню по центру (БЕЗ ЗАТЕМНЕНИЯ ФОНА) */
     
-    /* Общие стили для фиксации и ширины */
     .context-menu, 
     .emoji-picker,
     #preview-context-menu {
@@ -1573,39 +1572,41 @@ body.modal-open {
         z-index: 3000 !important;
     }
 
-    /* МЕНЮ РЕАКЦИЙ: Располагаем НАД центром */
+    /* МЕНЮ РЕАКЦИЙ: Сверху от центра */
     .emoji-picker {
-        top: auto !important;        /* Отменяем top */
-        bottom: 50% !important;      /* Привязываем к центру снизу */
-        transform: translate(-50%, -10px) !important; /* Сдвигаем чуть вверх и центрируем по X */
+        top: auto !important;
+        bottom: 50% !important;
+        transform: translate(-50%, -8px) !important; /* Небольшой отступ вверх */
         height: auto !important;
         flex-wrap: wrap;
         justify-content: center;
         padding: 10px;
         display: flex;
-        /* Убираем затемнение фона у реакций, чтобы не было двойной тени */
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; 
+        /* Обычная тень вокруг блока, экран НЕ затемняется */
+        box-shadow: 0 5px 20px rgba(0,0,0,0.5) !important; 
+        border: 1px solid #555; /* Добавим явную границу для контраста */
     }
 
-    /* КОНТЕКСТНОЕ МЕНЮ: Располагаем ПОД центром */
+    /* КОНТЕКСТНОЕ МЕНЮ (КНОПКИ): Снизу от центра */
     .context-menu {
-        top: 50% !important;         /* Привязываем к центру сверху */
-        transform: translate(-50%, 10px) !important;  /* Сдвигаем чуть вниз и центрируем по X */
-        /* Затемнение фона (backdrop) вешаем на нижнее меню */
-        box-shadow: 0 0 0 1000px rgba(0,0,0,0.7) !important; 
+        top: 50% !important;
+        transform: translate(-50%, 8px) !important; /* Небольшой отступ вниз */
+        /* Обычная тень вокруг блока, экран НЕ затемняется */
+        box-shadow: 0 5px 20px rgba(0,0,0,0.5) !important; 
+        border: 1px solid #555;
     }
 
-    /* Контекстное меню превью (при загрузке фото) - оставляем по центру */
+    /* Меню превью (для загрузки файлов) - тоже убираем затемнение */
     #preview-context-menu {
         top: 50% !important;
         transform: translate(-50%, -50%) !important;
-        box-shadow: 0 0 0 1000px rgba(0,0,0,0.7) !important;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.5) !important;
+        border: 1px solid #555;
     }
     
     .emoji-picker.expanded {
         display: flex;
         flex-wrap: wrap;
-        /* Если меню расширено, ограничиваем высоту и даем скролл, чтобы не улетело за экран */
         max-height: 40vh;
         overflow-y: auto;
     }
@@ -1641,4 +1642,5 @@ body.modal-open {
         max-width: 340px;
     }
 }
+
 
