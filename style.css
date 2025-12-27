@@ -1560,31 +1560,54 @@ body.modal-open {
         bottom: 50px; 
     }
 
-    /* 5. Всплывающие меню по центру */
+/* 5. Всплывающие меню по центру (ИСПРАВЛЕНО) */
+    
+    /* Общие стили для фиксации и ширины */
     .context-menu, 
     .emoji-picker,
     #preview-context-menu {
         position: fixed !important;
-        top: 50% !important;
         left: 50% !important;
-        transform: translate(-50%, -50%) !important;
         width: 85% !important;
         max-width: 320px;
         z-index: 3000 !important;
-        box-shadow: 0 0 0 1000px rgba(0,0,0,0.6) !important;
     }
 
+    /* МЕНЮ РЕАКЦИЙ: Располагаем НАД центром */
     .emoji-picker {
+        top: auto !important;        /* Отменяем top */
+        bottom: 50% !important;      /* Привязываем к центру снизу */
+        transform: translate(-50%, -10px) !important; /* Сдвигаем чуть вверх и центрируем по X */
         height: auto !important;
         flex-wrap: wrap;
         justify-content: center;
-        padding: 15px;
+        padding: 10px;
         display: flex;
+        /* Убираем затемнение фона у реакций, чтобы не было двойной тени */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; 
+    }
+
+    /* КОНТЕКСТНОЕ МЕНЮ: Располагаем ПОД центром */
+    .context-menu {
+        top: 50% !important;         /* Привязываем к центру сверху */
+        transform: translate(-50%, 10px) !important;  /* Сдвигаем чуть вниз и центрируем по X */
+        /* Затемнение фона (backdrop) вешаем на нижнее меню */
+        box-shadow: 0 0 0 1000px rgba(0,0,0,0.7) !important; 
+    }
+
+    /* Контекстное меню превью (при загрузке фото) - оставляем по центру */
+    #preview-context-menu {
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        box-shadow: 0 0 0 1000px rgba(0,0,0,0.7) !important;
     }
     
     .emoji-picker.expanded {
         display: flex;
         flex-wrap: wrap;
+        /* Если меню расширено, ограничиваем высоту и даем скролл, чтобы не улетело за экран */
+        max-height: 40vh;
+        overflow-y: auto;
     }
     
     .emoji-picker .emoji {
@@ -1618,3 +1641,4 @@ body.modal-open {
         max-width: 340px;
     }
 }
+
