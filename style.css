@@ -170,7 +170,13 @@ body.modal-open {
     flex-direction: column;
     position: relative;
     margin-bottom: 8px;
-    max-width: 400px; 
+    max-width: 400px;
+    /* Запрет выделения текста для мобильных (чтобы работало меню реакций) */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .my-message-wrapper {
@@ -817,6 +823,9 @@ body.modal-open {
     box-sizing: border-box;
     line-height: 20px;
     margin-right: 0;
+    /* Разрешаем выделение текста в поле ввода */
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 #send-button {
@@ -1476,26 +1485,26 @@ body.modal-open {
         display: flex;
     }
 
-    /* --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ДЛЯ КНОПКИ МЕНЮ --- */
+    /* --- КНОПКА МЕНЮ --- */
     #menu-btn {
-        position: fixed; /* Фиксируем на экране, вне зависимости от ширины родителя */
-        top: 6px;
-        left: 5px;
-        width: 44px;
-        height: 44px;
-        z-index: 3000; /* Поверх всего */
-        text-align: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 50px;       /* Ширина под отступ хедера */
+        height: 60px;      /* Высота под высоту хедера */
+        z-index: 3000;     /* Поверх всего */
         padding: 0;
         display: flex;
         align-items: center;
         justify-content: center;
         background: transparent;
-        color: #fff; /* Белый цвет иконки */
+        color: #fff;
+        font-size: 22px;
     }
     
-    /* Если меню открыто, кнопка "ложится" внутрь дизайна меню */
+    /* Если меню открыто, кнопка возвращается в поток меню */
     #sidebar.expanded #menu-btn {
-        position: static; /* Возвращаем в поток */
+        position: static; 
         width: 100%;
         height: auto;
         padding: 15px 20px;
@@ -1504,9 +1513,13 @@ body.modal-open {
         justify-content: flex-start;
     }
 
-    /* Сдвигаем хедер чата вправо, чтобы не наезжал на кнопку меню */
+    /* --- ХЕДЕР ЧАТА --- */
     #chat-header {
-        padding-left: 55px; 
+        padding-left: 50px; /* Отступ чтобы текст не наезжал на кнопку */
+        height: 60px;       /* Фиксированная высота для выравнивания */
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
     }
 
     /* 3. Сообщения */
