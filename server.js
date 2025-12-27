@@ -32,29 +32,8 @@ const db = new sqlite3.Database(DB_SOURCE, (err) => {
             password TEXT,
             avatar TEXT
         )`);
-
-        if (process.env.USER1_LOGIN && process.env.USER1_PASS) {
-            createSystemUser(process.env.USER1_LOGIN, process.env.USER1_PASS);
-        }
-        if (process.env.USER2_LOGIN && process.env.USER2_PASS) {
-            createSystemUser(process.env.USER2_LOGIN, process.env.USER2_PASS);
-        }
     });
 });
-
-function createSystemUser(username, password) {
-    const checkSql = "SELECT id FROM users WHERE username = ?";
-    db.get(checkSql, [username], (err, row) => {
-        if (!row) {
-            const hashedPassword = bcrypt.hashSync(password, 8);
-            const insertSql = "INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)";
-            db.run(insertSql, [username, hashedPassword, null], (err) => {
-                if (err) console.error(`Ошибка создания ${username}:`, err.message);
-                else console.log(`Системный пользователь ${username} создан/восстановлен.`);
-            });
-        }
-    });
-}
 
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
@@ -62,13 +41,23 @@ app.post('/api/login', (req, res) => {
     
     db.get(sql, [username], (err, user) => {
         if (err) return res.status(500).json({ error: "Ошибка сервера" });
-        if (!user) return res.status(404).json({ error: "Пользователь не найден" });
+        
+        if (!user) {
+            const hashedPassword = bcrypt.hashSync(password, 8);
+            const insertSql = "INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)";
+            db.run(insertSql, [username, hashedPassword, null], function(err) {
+                if (err) return res.status(500).json({ error: "Ошибка регистрации" });
+                
+                const token = jwt.sign({ id: this.lastID, username: username }, SECRET_KEY, { expiresIn: '24h' });
+                return res.json({ message: "Регистрация успешна", token, username, id: this.lastID, avatar: null });
+            });
+        } else {
+            const passwordIsValid = bcrypt.compareSync(password, user.password);
+            if (!passwordIsValid) return res.status(401).json({ error: "Неверный пароль" });
 
-        const passwordIsValid = bcrypt.compareSync(password, user.password);
-        if (!passwordIsValid) return res.status(401).json({ error: "Неверный пароль" });
-
-        const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY, { expiresIn: '24h' });
-        res.json({ message: "Успешный вход", token, username, id: user.id, avatar: user.avatar });
+            const token = jwt.sign({ id: user.id, username: user.username }, SECRET_KEY, { expiresIn: '24h' });
+            res.json({ message: "Успешный вход", token, username, id: user.id, avatar: user.avatar });
+        }
     });
 });
 
@@ -82,23 +71,31 @@ app.post('/api/update_profile', (req, res) => {
         if (err) return res.status(403).json({ error: 'Токен недействителен' });
 
         const { newUsername, newAvatar } = req.body;
+        // Но для аватарки null может быть валидным (удаление), тут упрощено
+        const sql = `UPDATE users SET username = ?, avatar = ? WHERE id = ?`;
+        // В данном случае клиент всегда шлет полный стейт, так что пишем как есть.
         
-        const sql = `UPDATE users SET username = COALESCE(?, username), avatar = COALESCE(?, avatar) WHERE id = ?`;
-        
-        db.run(sql, [newUsername, newAvatar, user.id], function(err) {
-            if (err) {
-                return res.status(400).json({ error: "Ошибка обновления" });
-            }
-            
-            const updatedUsername = newUsername || user.username;
-            const newToken = jwt.sign({ id: user.id, username: updatedUsername }, SECRET_KEY, { expiresIn: '24h' });
-            
-            res.json({ 
-                success: true, 
-                token: newToken, 
-                id: user.id,
-                username: updatedUsername,
-                avatar: newAvatar 
+        db.get("SELECT * FROM users WHERE id = ?", [user.id], (err, currentUser) => {
+            if(err || !currentUser) return res.status(500).json({ error: "Ошибка БД" });
+
+            const nameToSave = newUsername || currentUser.username;
+            const avatarToSave = newAvatar !== undefined ? newAvatar : currentUser.avatar;
+
+            db.run(sql, [nameToSave, avatarToSave, user.id], function(err) {
+                if (err) {
+                    console.error(err);
+                    return res.status(400).json({ error: "Ошибка обновления (возможно имя занято)" });
+                }
+                
+                const newToken = jwt.sign({ id: user.id, username: nameToSave }, SECRET_KEY, { expiresIn: '24h' });
+                
+                res.json({ 
+                    success: true, 
+                    token: newToken, 
+                    id: user.id,
+                    username: nameToSave,
+                    avatar: avatarToSave 
+                });
             });
         });
     });
@@ -111,7 +108,7 @@ const clients = new Map();
 
 function broadcast(data, senderWs) {
     const messageStr = JSON.stringify(data);
-    for (const [clientWs, userData] of clients.entries()) {
+    for (const [clientWs] of clients.entries()) {
         if (clientWs !== senderWs && clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(messageStr);
         }
