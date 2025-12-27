@@ -1006,9 +1006,19 @@ function createTranslateButton(messageElement, originalText) {
     return translateBtn;
 }
 
+// === МОБИЛЬНАЯ АДАПТАЦИЯ СКРОЛЛА ===
 function scrollToBottom() {
     requestAnimationFrame(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // Проверяем ширину экрана
+        if (window.innerWidth <= 768) {
+            // На мобильном скроллится вся страница (body/html), а не контейнер
+            window.scrollTo(0, document.body.scrollHeight);
+            // На всякий случай скроллим и контейнер, если CSS вдруг поменяется
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } else {
+            // На ПК скроллится только контейнер сообщений
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
     });
 }
 
@@ -1860,7 +1870,13 @@ document.addEventListener('click', (event) => {
         focusMessageInput();
     }
 
-    if (sidebar.classList.contains('expanded') && !sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+    // Закрываем сайдбар при клике вне его на мобильном
+    if (window.innerWidth <= 768 && sidebar.classList.contains('expanded')) {
+        if (!sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+            sidebar.classList.remove('expanded');
+        }
+    } else if (sidebar.classList.contains('expanded') && !sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+        // Для десктопа (старая логика)
         sidebar.classList.remove('expanded');
     }
 });
