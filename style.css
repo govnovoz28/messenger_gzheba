@@ -1454,6 +1454,8 @@ padding: 0;
 position: relative;
 z-index: 2001;
 text-align: center;
+padding-left: 15px; /* Отодвигает иконку от левого края */
+box-sizing: border-box;
 }
 #sidebar.expanded {
 width: 80%;
