@@ -123,7 +123,6 @@ menuBtn.addEventListener('click', (e) => {
 });
 
 openProfileBtn.addEventListener('click', () => {
-    sidebar.classList.remove('expanded');
     profileModal.style.display = 'flex';
     setTimeout(() => {
         profileModal.classList.add('modal-visible');
@@ -1144,61 +1143,6 @@ function updateMessageContent(messageId, newContent) {
     }
 }
 
-// Новая функция для обработки долгого нажатия на телефонах
-function addTouchHandlers(element) {
-    let timer;
-    const touchDuration = 500; // 500мс считается долгим нажатием
-    let startX, startY;
-    let isScrolling = false;
-
-    element.addEventListener('touchstart', (e) => {
-        // Если нажали на картинку или ссылку внутри - даем сработать их событиям, 
-        // но для сообщения в целом запускаем таймер
-        if (e.target.closest('.modal-nav') || e.target.closest('.delete-actions')) return;
-        
-        isScrolling = false;
-        const touch = e.touches[0];
-        startX = touch.clientX;
-        startY = touch.clientY;
-
-        timer = setTimeout(() => {
-            if (!isScrolling) {
-                // Создаем искусственное событие для showEmojiPicker
-                // Нам нужно передать координаты пальца
-                const mockEvent = {
-                    preventDefault: () => {},
-                    stopPropagation: () => {},
-                    pageX: touch.pageX,
-                    pageY: touch.pageY,
-                    target: element
-                };
-                
-                // Вибрация для обратной связи
-                if (navigator.vibrate) navigator.vibrate(50);
-                
-                showEmojiPicker(mockEvent, element);
-            }
-        }, touchDuration);
-    }, { passive: true });
-
-    element.addEventListener('touchmove', (e) => {
-        const touch = e.touches[0];
-        // Если палец сдвинулся более чем на 10px, считаем это скроллом, а не нажатием
-        if (Math.abs(touch.clientX - startX) > 10 || Math.abs(touch.clientY - startY) > 10) {
-            isScrolling = true;
-            clearTimeout(timer);
-        }
-    }, { passive: true });
-
-    element.addEventListener('touchend', () => {
-        if (timer) clearTimeout(timer);
-    });
-
-    element.addEventListener('touchcancel', () => {
-        if (timer) clearTimeout(timer);
-    });
-}
-
 function displayMessage(data, type) {
     const messageWrapper = document.createElement('div');
     
@@ -1358,10 +1302,6 @@ function displayMessage(data, type) {
 
     if (messageElement) {
         messageWrapper.appendChild(messageElement);
-        
-        // Добавляем обработчик долгого нажатия для мобильных
-        addTouchHandlers(messageWrapper);
-        
         messagesContainer.appendChild(messageWrapper);
         scrollToBottom();
     }
@@ -1995,4 +1935,3 @@ document.addEventListener('click', (event) => {
         sidebar.classList.remove('expanded');
     }
 });
-
