@@ -466,6 +466,8 @@ body.modal-open {
     text-overflow: ellipsis;
     white-space: nowrap;
     display: block;
+    width: 100%;
+    max-width: 100%;
 }
 
 .reply-info .reply-image-indicator, .reply-info .reply-file-indicator {
@@ -481,6 +483,9 @@ body.modal-open {
     margin-bottom: 10px;
     border-radius: 4px;
     position: relative;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .reply-preview.edit-mode {
