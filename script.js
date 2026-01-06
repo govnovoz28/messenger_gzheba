@@ -199,12 +199,12 @@ function compressImageSpecific(file, maxWidth, maxHeight, quality) {
 profileAvatarInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-        try {
-            const compressed = await compressImageSpecific(file, 300, 300, 0.7);
-            profileAvatarPreview.src = compressed;
-            profileAvatarPreview.classList.remove('hidden');
-            profileAvatarPlaceholder.classList.add('hidden');
-        } catch (err) {
+    try {
+        const compressed = await compressImageSpecific(file, 1024, 1024, 0.8);
+        profileAvatarPreview.src = compressed;
+        profileAvatarPreview.classList.remove('hidden');
+        profileAvatarPlaceholder.classList.add('hidden');
+    } catch (err) {
             alert("Ошибка обработки фото: " + err.message);
         }
     }
